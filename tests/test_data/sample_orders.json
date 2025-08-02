@@ -1,0 +1,58 @@
+{
+  "app_version": "2.1.0",
+  "upload_time": "2024-01-15T12:00:00Z",
+  "total_orders": 3,
+  "orders": [
+    {
+      "order_id": "ORD-2024-006",
+      "customer_name": "David Lee",
+      "customer_email": "david.lee@email.com",
+      "product": "Samsung Galaxy S24",
+      "product_category": "Electronics",
+      "quantity": 1,
+      "price": 899.99,
+      "discount": 0.0,
+      "total_amount": 899.99,
+      "order_date": "2024-01-20",
+      "store_location": "San Francisco",
+      "source": "mobile_app",
+      "device_type": "Android",
+      "created_at": "2024-01-20T08:15:00Z",
+      "updated_at": "2024-01-20T08:15:00Z"
+    },
+    {
+      "order_id": "ORD-2024-007",
+      "customer_name": "Emma Wilson",
+      "customer_email": "emma.wilson@email.com",
+      "product": "Nintendo Switch",
+      "product_category": "Gaming",
+      "quantity": 1,
+      "price": 299.99,
+      "discount": 30.0,
+      "total_amount": 269.99,
+      "order_date": "2024-01-21",
+      "store_location": "Seattle",
+      "source": "mobile_app",
+      "device_type": "iOS",
+      "created_at": "2024-01-21T14:30:00Z",
+      "updated_at": "2024-01-21T14:30:00Z"
+    },
+    {
+      "order_id": "ORD-2024-008",
+      "customer_name": "Michael Chen",
+      "customer_email": "michael.chen@email.com",
+      "product": "PlayStation 5",
+      "product_category": "Gaming",
+      "quantity": 1,
+      "price": 499.99,
+      "discount": 0.0,
+      "total_amount": 499.99,
+      "order_date": "2024-01-22",
+      "store_location": "Denver",
+      "source": "mobile_app",
+      "device_type": "Android",
+      "created_at": "2024-01-22T19:45:00Z",
+      "updated_at": "2024-01-22T19:45:00Z"
+    }
+  ]
+}
