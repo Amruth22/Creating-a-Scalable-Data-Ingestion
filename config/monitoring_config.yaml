@@ -1,0 +1,669 @@
+# Monitoring and Observability Configuration
+# Configuration for pipeline monitoring, alerting, metrics collection, and health checks
+
+# Global Monitoring Settings
+global_settings:
+  enabled: true
+  monitoring_interval_seconds: 60
+  data_retention_days: 30
+  timezone: "UTC"
+  
+  # Monitoring levels
+  levels:
+    system: true      # System-level metrics (CPU, memory, disk)
+    pipeline: true    # Pipeline execution metrics
+    data_quality: true # Data quality metrics
+    business: true    # Business metrics
+    
+  # Output configuration
+  output:
+    console: true
+    file: true
+    database: true
+    external: false   # External monitoring systems
+
+# Metrics Collection Configuration
+metrics:
+  enabled: true
+  collection_interval_seconds: 30
+  batch_size: 100
+  
+  # Metric categories
+  categories:
+    # System metrics
+    system:
+      enabled: true
+      metrics:
+        - name: "cpu_usage_percent"
+          description: "CPU usage percentage"
+          type: "gauge"
+          unit: "percent"
+          collection_method: "psutil"
+          
+        - name: "memory_usage_mb"
+          description: "Memory usage in MB"
+          type: "gauge"
+          unit: "megabytes"
+          collection_method: "psutil"
+          
+        - name: "memory_usage_percent"
+          description: "Memory usage percentage"
+          type: "gauge"
+          unit: "percent"
+          collection_method: "psutil"
+          
+        - name: "disk_usage_mb"
+          description: "Disk usage in MB"
+          type: "gauge"
+          unit: "megabytes"
+          collection_method: "psutil"
+          paths: ["/", "data/"]
+          
+        - name: "disk_usage_percent"
+          description: "Disk usage percentage"
+          type: "gauge"
+          unit: "percent"
+          collection_method: "psutil"
+          paths: ["/", "data/"]
+          
+        - name: "network_io_bytes"
+          description: "Network I/O bytes"
+          type: "counter"
+          unit: "bytes"
+          collection_method: "psutil"
+          
+    # Pipeline execution metrics
+    pipeline:
+      enabled: true
+      metrics:
+        - name: "pipeline_runs_total"
+          description: "Total number of pipeline runs"
+          type: "counter"
+          unit: "count"
+          
+        - name: "pipeline_runs_successful"
+          description: "Number of successful pipeline runs"
+          type: "counter"
+          unit: "count"
+          
+        - name: "pipeline_runs_failed"
+          description: "Number of failed pipeline runs"
+          type: "counter"
+          unit: "count"
+          
+        - name: "pipeline_execution_time_seconds"
+          description: "Pipeline execution time"
+          type: "histogram"
+          unit: "seconds"
+          buckets: [1, 5, 10, 30, 60, 300, 600, 1800, 3600]
+          
+        - name: "records_processed_total"
+          description: "Total records processed"
+          type: "counter"
+          unit: "count"
+          
+        - name: "records_failed_total"
+          description: "Total records failed"
+          type: "counter"
+          unit: "count"
+          
+        - name: "throughput_records_per_second"
+          description: "Processing throughput"
+          type: "gauge"
+          unit: "records_per_second"
+          
+        - name: "stage_execution_time_seconds"
+          description: "Individual stage execution time"
+          type: "histogram"
+          unit: "seconds"
+          labels: ["stage_name"]
+          buckets: [0.1, 0.5, 1, 5, 10, 30, 60, 300]
+          
+    # Data quality metrics
+    data_quality:
+      enabled: true
+      metrics:
+        - name: "data_quality_score"
+          description: "Overall data quality score"
+          type: "gauge"
+          unit: "percent"
+          
+        - name: "validation_errors_total"
+          description: "Total validation errors"
+          type: "counter"
+          unit: "count"
+          labels: ["error_type", "severity"]
+          
+        - name: "schema_validation_success_rate"
+          description: "Schema validation success rate"
+          type: "gauge"
+          unit: "percent"
+          
+        - name: "data_completeness_percent"
+          description: "Data completeness percentage"
+          type: "gauge"
+          unit: "percent"
+          labels: ["field_name"]
+          
+        - name: "duplicate_records_count"
+          description: "Number of duplicate records"
+          type: "gauge"
+          unit: "count"
+          
+        - name: "data_freshness_hours"
+          description: "Data freshness in hours"
+          type: "gauge"
+          unit: "hours"
+          
+    # Business metrics
+    business:
+      enabled: true
+      metrics:
+        - name: "orders_processed_total"
+          description: "Total orders processed"
+          type: "counter"
+          unit: "count"
+          labels: ["source", "status"]
+          
+        - name: "revenue_processed_total"
+          description: "Total revenue processed"
+          type: "counter"
+          unit: "currency"
+          labels: ["source"]
+          
+        - name: "customers_processed_total"
+          description: "Total customers processed"
+          type: "counter"
+          unit: "count"
+          
+        - name: "average_order_value"
+          description: "Average order value"
+          type: "gauge"
+          unit: "currency"
+          
+        - name: "orders_by_category"
+          description: "Orders by product category"
+          type: "gauge"
+          unit: "count"
+          labels: ["category"]
+          
+    # API metrics
+    api:
+      enabled: true
+      metrics:
+        - name: "api_requests_total"
+          description: "Total API requests"
+          type: "counter"
+          unit: "count"
+          labels: ["endpoint", "method", "status_code"]
+          
+        - name: "api_request_duration_seconds"
+          description: "API request duration"
+          type: "histogram"
+          unit: "seconds"
+          labels: ["endpoint"]
+          buckets: [0.1, 0.5, 1, 2, 5, 10, 30]
+          
+        - name: "api_rate_limit_remaining"
+          description: "API rate limit remaining"
+          type: "gauge"
+          unit: "count"
+          labels: ["endpoint"]
+          
+        - name: "api_errors_total"
+          description: "Total API errors"
+          type: "counter"
+          unit: "count"
+          labels: ["endpoint", "error_type"]
+
+# Health Checks Configuration
+health_checks:
+  enabled: true
+  check_interval_seconds: 60
+  timeout_seconds: 30
+  
+  # Health check definitions
+  checks:
+    # System health checks
+    system:
+      - name: "disk_space"
+        description: "Check available disk space"
+        type: "disk_space"
+        enabled: true
+        critical_threshold_mb: 1024    # 1GB
+        warning_threshold_mb: 5120     # 5GB
+        paths: ["/", "data/", "logs/"]
+        
+      - name: "memory_usage"
+        description: "Check memory usage"
+        type: "memory"
+        enabled: true
+        critical_threshold_percent: 95
+        warning_threshold_percent: 85
+        
+      - name: "cpu_usage"
+        description: "Check CPU usage"
+        type: "cpu"
+        enabled: true
+        critical_threshold_percent: 90
+        warning_threshold_percent: 80
+        check_duration_seconds: 60
+        
+    # Database health checks
+    database:
+      - name: "database_connectivity"
+        description: "Check database connection"
+        type: "database_connection"
+        enabled: true
+        timeout_seconds: 10
+        databases: ["main_orders_db"]
+        
+      - name: "database_query_performance"
+        description: "Check database query performance"
+        type: "database_query"
+        enabled: true
+        query: "SELECT COUNT(*) FROM orders WHERE created_at > datetime('now', '-1 hour')"
+        timeout_seconds: 5
+        warning_threshold_ms: 1000
+        critical_threshold_ms: 5000
+        
+      - name: "database_size"
+        description: "Check database size"
+        type: "database_size"
+        enabled: true
+        warning_threshold_mb: 1024     # 1GB
+        critical_threshold_mb: 5120    # 5GB
+        
+    # API health checks
+    api:
+      - name: "api_endpoints"
+        description: "Check API endpoint availability"
+        type: "http_endpoint"
+        enabled: true
+        endpoints:
+          - url: "https://jsonplaceholder.typicode.com/posts/1"
+            method: "GET"
+            expected_status: 200
+            timeout_seconds: 10
+            
+      - name: "api_authentication"
+        description: "Check API authentication"
+        type: "api_auth"
+        enabled: true
+        endpoints: ["ecommerce_api", "partner_api"]
+        
+    # File system health checks
+    filesystem:
+      - name: "input_directories"
+        description: "Check input directories accessibility"
+        type: "directory_access"
+        enabled: true
+        directories: ["data/input/csv", "data/input/json", "data/input/processed"]
+        
+      - name: "log_files"
+        description: "Check log file rotation"
+        type: "log_files"
+        enabled: true
+        log_directory: "logs/"
+        max_file_size_mb: 100
+        max_files: 10
+        
+    # Pipeline health checks
+    pipeline:
+      - name: "recent_pipeline_runs"
+        description: "Check for recent pipeline runs"
+        type: "pipeline_activity"
+        enabled: true
+        max_hours_since_last_run: 25  # Should run at least daily
+        
+      - name: "pipeline_success_rate"
+        description: "Check pipeline success rate"
+        type: "pipeline_success_rate"
+        enabled: true
+        time_window_hours: 24
+        warning_threshold_percent: 90
+        critical_threshold_percent: 80
+
+# Alerting Configuration
+alerting:
+  enabled: true
+  
+  # Alert channels
+  channels:
+    # Console alerts
+    console:
+      enabled: true
+      min_severity: "warning"
+      format: "text"
+      colors: true
+      
+    # Email alerts
+    email:
+      enabled: false  # Configure SMTP settings to enable
+      smtp_server: "${SMTP_SERVER:-smtp.gmail.com}"
+      smtp_port: "${SMTP_PORT:-587}"
+      smtp_username: "${SMTP_USERNAME}"
+      smtp_password: "${SMTP_PASSWORD}"
+      smtp_use_tls: true
+      from_address: "${ALERT_FROM_EMAIL:-alerts@company.com}"
+      to_addresses: ["${ALERT_TO_EMAIL:-admin@company.com}"]
+      min_severity: "error"
+      
+    # Slack alerts
+    slack:
+      enabled: false  # Configure webhook to enable
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+      channel: "#data-alerts"
+      username: "DataPipeline"
+      min_severity: "warning"
+      
+    # File alerts
+    file:
+      enabled: true
+      file_path: "logs/alerts.log"
+      min_severity: "info"
+      max_file_size_mb: 50
+      backup_count: 5
+      
+  # Alert rules
+  rules:
+    # System alerts
+    - name: "high_cpu_usage"
+      description: "CPU usage is too high"
+      condition: "cpu_usage_percent > 85"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 15
+      
+    - name: "critical_cpu_usage"
+      description: "CPU usage is critically high"
+      condition: "cpu_usage_percent > 95"
+      severity: "critical"
+      enabled: true
+      cooldown_minutes: 5
+      
+    - name: "high_memory_usage"
+      description: "Memory usage is too high"
+      condition: "memory_usage_percent > 85"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 15
+      
+    - name: "low_disk_space"
+      description: "Disk space is running low"
+      condition: "disk_usage_percent > 85"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 60
+      
+    - name: "critical_disk_space"
+      description: "Disk space is critically low"
+      condition: "disk_usage_percent > 95"
+      severity: "critical"
+      enabled: true
+      cooldown_minutes: 30
+      
+    # Pipeline alerts
+    - name: "pipeline_failure"
+      description: "Pipeline execution failed"
+      condition: "pipeline_runs_failed > 0"
+      severity: "error"
+      enabled: true
+      cooldown_minutes: 0  # No cooldown for failures
+      
+    - name: "high_pipeline_execution_time"
+      description: "Pipeline execution time is too high"
+      condition: "pipeline_execution_time_seconds > 3600"  # 1 hour
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 30
+      
+    - name: "low_pipeline_success_rate"
+      description: "Pipeline success rate is too low"
+      condition: "pipeline_success_rate < 90"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 60
+      
+    - name: "no_recent_pipeline_runs"
+      description: "No recent pipeline runs detected"
+      condition: "hours_since_last_pipeline_run > 25"
+      severity: "error"
+      enabled: true
+      cooldown_minutes: 60
+      
+    # Data quality alerts
+    - name: "low_data_quality"
+      description: "Data quality score is too low"
+      condition: "data_quality_score < 80"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 30
+      
+    - name: "critical_data_quality"
+      description: "Data quality score is critically low"
+      condition: "data_quality_score < 50"
+      severity: "critical"
+      enabled: true
+      cooldown_minutes: 15
+      
+    - name: "high_validation_errors"
+      description: "Too many validation errors"
+      condition: "validation_errors_total > 100"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 30
+      
+    - name: "stale_data"
+      description: "Data is too old"
+      condition: "data_freshness_hours > 25"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 60
+      
+    # API alerts
+    - name: "api_errors"
+      description: "API errors detected"
+      condition: "api_errors_total > 10"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 15
+      
+    - name: "api_rate_limit"
+      description: "API rate limit approaching"
+      condition: "api_rate_limit_remaining < 10"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 60
+      
+    - name: "slow_api_response"
+      description: "API response time is slow"
+      condition: "api_request_duration_seconds > 10"
+      severity: "warning"
+      enabled: true
+      cooldown_minutes: 30
+
+# Dashboard Configuration
+dashboard:
+  enabled: true
+  
+  # Dashboard settings
+  settings:
+    refresh_interval_seconds: 30
+    auto_refresh: true
+    theme: "dark"
+    
+  # Dashboard panels
+  panels:
+    # System overview
+    system_overview:
+      enabled: true
+      title: "System Overview"
+      metrics:
+        - "cpu_usage_percent"
+        - "memory_usage_percent"
+        - "disk_usage_percent"
+      chart_type: "gauge"
+      
+    # Pipeline status
+    pipeline_status:
+      enabled: true
+      title: "Pipeline Status"
+      metrics:
+        - "pipeline_runs_total"
+        - "pipeline_runs_successful"
+        - "pipeline_runs_failed"
+      chart_type: "stat"
+      
+    # Data quality
+    data_quality:
+      enabled: true
+      title: "Data Quality"
+      metrics:
+        - "data_quality_score"
+        - "validation_errors_total"
+        - "data_completeness_percent"
+      chart_type: "gauge"
+      
+    # Processing throughput
+    throughput:
+      enabled: true
+      title: "Processing Throughput"
+      metrics:
+        - "records_processed_total"
+        - "throughput_records_per_second"
+      chart_type: "graph"
+      time_range: "1h"
+      
+    # API performance
+    api_performance:
+      enabled: true
+      title: "API Performance"
+      metrics:
+        - "api_request_duration_seconds"
+        - "api_requests_total"
+        - "api_errors_total"
+      chart_type: "graph"
+      time_range: "1h"
+
+# Logging Configuration
+logging:
+  enabled: true
+  
+  # Log levels
+  levels:
+    root: "INFO"
+    pipeline: "INFO"
+    monitoring: "INFO"
+    alerts: "INFO"
+    
+  # Log formats
+  formats:
+    console: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file: "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+    json: '{"timestamp": "%(asctime)s", "logger": "%(name)s", "level": "%(levelname)s", "message": "%(message)s"}'
+    
+  # Log handlers
+  handlers:
+    console:
+      enabled: true
+      level: "INFO"
+      format: "console"
+      
+    file:
+      enabled: true
+      level: "DEBUG"
+      format: "file"
+      filename: "logs/monitoring.log"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+      
+    json_file:
+      enabled: false
+      level: "INFO"
+      format: "json"
+      filename: "logs/monitoring.json"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+
+# Performance Configuration
+performance:
+  # Metrics collection optimization
+  metrics_collection:
+    batch_processing: true
+    async_collection: true
+    compression: true
+    
+  # Memory management
+  memory_management:
+    max_metrics_in_memory: 10000
+    cleanup_interval_seconds: 300
+    
+  # Storage optimization
+  storage:
+    use_compression: true
+    retention_policy: "time_based"  # time_based, size_based
+    cleanup_old_data: true
+
+# Environment-specific Monitoring Settings
+environments:
+  development:
+    global_settings:
+      monitoring_interval_seconds: 120  # Less frequent in dev
+      data_retention_days: 7
+      
+    metrics:
+      collection_interval_seconds: 60
+      
+    health_checks:
+      check_interval_seconds: 300  # Less frequent in dev
+      
+    alerting:
+      enabled: false  # Disable alerts in dev
+      
+    dashboard:
+      settings:
+        refresh_interval_seconds: 60
+        
+  staging:
+    global_settings:
+      data_retention_days: 14
+      
+    alerting:
+      channels:
+        email:
+          enabled: false
+        slack:
+          enabled: false
+        console:
+          enabled: true
+          
+  production:
+    global_settings:
+      monitoring_interval_seconds: 30  # More frequent in production
+      data_retention_days: 90
+      
+    metrics:
+      collection_interval_seconds: 15  # More frequent collection
+      
+    health_checks:
+      check_interval_seconds: 30  # More frequent health checks
+      
+    alerting:
+      enabled: true
+      channels:
+        email:
+          enabled: true
+        slack:
+          enabled: true
+        console:
+          enabled: false  # Disable console alerts in production
+          
+    dashboard:
+      settings:
+        refresh_interval_seconds: 15  # More frequent refresh
+        
+    performance:
+      metrics_collection:
+        async_collection: true
+        compression: true
