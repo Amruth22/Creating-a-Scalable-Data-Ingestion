@@ -1,478 +1,359 @@
 """
-Health check script for data ingestion pipeline
-Verifies all system components are working correctly
+Health check script
+Verifies system status, dependencies, and configuration
 """
 
 import os
 import sys
 import sqlite3
+import requests
 import logging
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # Add src to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from utils.config import config
-from utils.helpers import ensure_directory_exists
-from ingestion.api_ingestion import APIIngestion
+project_root = os.path.join(os.path.dirname(__file__), '..')
+src_path = os.path.join(project_root, 'src')
+sys.path.insert(0, project_root)
+sys.path.insert(0, src_path)
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.WARNING)  # Suppress info logs for cleaner output
 
-class HealthChecker:
-    """System health checker for data ingestion pipeline"""
+def check_python_version():
+    """Check Python version"""
+    print("🐍 Python Version Check")
+    version = sys.version_info
+    print(f"   Version: {version.major}.{version.minor}.{version.micro}")
     
-    def __init__(self):
-        """Initialize health checker"""
-        self.checks = []
-        self.passed_checks = 0
-        self.failed_checks = 0
+    if version.major >= 3 and version.minor >= 8:
+        print("   ✅ Python version is compatible")
+        return True
+    else:
+        print("   ❌ Python 3.8+ required")
+        return False
+
+def check_dependencies():
+    """Check required dependencies"""
+    print("\n📦 Dependencies Check")
     
-    def add_check_result(self, check_name: str, passed: bool, message: str = ""):
-        """Add a check result"""
-        status = "✅ PASS" if passed else "❌ FAIL"
-        self.checks.append({
-            'name': check_name,
-            'passed': passed,
-            'message': message,
-            'status': status
-        })
-        
-        if passed:
-            self.passed_checks += 1
-        else:
-            self.failed_checks += 1
-        
-        print(f"{status} {check_name}")
-        if message:
-            print(f"    {message}")
+    required_packages = [
+        'pandas',
+        'numpy', 
+        'requests',
+        'sqlalchemy',
+        'pyyaml',
+        'jsonschema',
+        'structlog',
+        'tqdm',
+        'click'
+    ]
     
-    def check_python_version(self) -> bool:
-        """Check Python version"""
+    missing_packages = []
+    
+    for package in required_packages:
         try:
-            version = sys.version_info
-            if version.major >= 3 and version.minor >= 8:
-                self.add_check_result(
-                    "Python Version", 
-                    True, 
-                    f"Python {version.major}.{version.minor}.{version.micro}"
-                )
-                return True
-            else:
-                self.add_check_result(
-                    "Python Version", 
-                    False, 
-                    f"Python {version.major}.{version.minor}.{version.micro} - Requires Python 3.8+"
-                )
-                return False
-        except Exception as e:
-            self.add_check_result("Python Version", False, f"Error: {e}")
-            return False
+            __import__(package)
+            print(f"   ✅ {package}")
+        except ImportError:
+            print(f"   ❌ {package} (missing)")
+            missing_packages.append(package)
     
-    def check_required_packages(self) -> bool:
-        """Check if required packages are installed"""
-        required_packages = [
-            'pandas', 'requests', 'schedule', 'pyyaml', 'sqlite3'
-        ]
-        
-        all_packages_ok = True
-        missing_packages = []
-        
-        for package in required_packages:
+    if missing_packages:
+        print(f"\n   💡 Install missing packages: pip install {' '.join(missing_packages)}")
+        return False
+    
+    return True
+
+def check_directories():
+    """Check required directories"""
+    print("\n📁 Directory Structure Check")
+    
+    required_dirs = [
+        'data',
+        'data/input',
+        'data/input/csv',
+        'data/input/json',
+        'data/output',
+        'logs',
+        'config'
+    ]
+    
+    all_exist = True
+    
+    for directory in required_dirs:
+        if os.path.exists(directory):
+            print(f"   ✅ {directory}")
+        else:
+            print(f"   ❌ {directory} (missing)")
+            all_exist = False
+            # Create missing directory
             try:
-                if package == 'sqlite3':
-                    import sqlite3
-                else:
-                    __import__(package)
-                logger.debug(f"Package {package} is available")
-            except ImportError:
-                missing_packages.append(package)
-                all_packages_ok = False
-        
-        if all_packages_ok:
-            self.add_check_result(
-                "Required Packages", 
-                True, 
-                f"All {len(required_packages)} packages available"
-            )
-        else:
-            self.add_check_result(
-                "Required Packages", 
-                False, 
-                f"Missing packages: {', '.join(missing_packages)}"
-            )
-        
-        return all_packages_ok
-    
-    def check_directory_structure(self) -> bool:
-        """Check if required directories exist"""
-        required_directories = [
-            config.file.input_dir,
-            f"{config.file.input_dir}/csv",
-            f"{config.file.input_dir}/json",
-            config.file.output_dir,
-            config.file.processed_dir,
-            "logs",
-            "data/samples"
-        ]
-        
-        all_dirs_ok = True
-        missing_dirs = []
-        
-        for directory in required_directories:
-            if not os.path.exists(directory):
-                try:
-                    ensure_directory_exists(directory)
-                    logger.debug(f"Created directory: {directory}")
-                except Exception as e:
-                    missing_dirs.append(f"{directory} ({e})")
-                    all_dirs_ok = False
-            else:
-                logger.debug(f"Directory exists: {directory}")
-        
-        if all_dirs_ok:
-            self.add_check_result(
-                "Directory Structure", 
-                True, 
-                f"All {len(required_directories)} directories available"
-            )
-        else:
-            self.add_check_result(
-                "Directory Structure", 
-                False, 
-                f"Issues with directories: {', '.join(missing_dirs)}"
-            )
-        
-        return all_dirs_ok
-    
-    def check_database_connection(self) -> bool:
-        """Check database connection and schema"""
-        try:
-            db_path = config.database.path
-            
-            # Check if database file exists
-            if not os.path.exists(db_path):
-                self.add_check_result(
-                    "Database Connection", 
-                    False, 
-                    f"Database file not found: {db_path}"
-                )
-                return False
-            
-            # Try to connect and query
-            conn = sqlite3.connect(db_path, timeout=config.database.timeout)
-            cursor = conn.cursor()
-            
-            # Check if main tables exist
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [row[0] for row in cursor.fetchall()]
-            
-            required_tables = ['orders', 'customers', 'products', 'pipeline_runs']
-            missing_tables = [table for table in required_tables if table not in tables]
-            
-            if missing_tables:
-                conn.close()
-                self.add_check_result(
-                    "Database Connection", 
-                    False, 
-                    f"Missing tables: {', '.join(missing_tables)}"
-                )
-                return False
-            
-            # Test a simple query
-            cursor.execute("SELECT COUNT(*) FROM orders")
-            order_count = cursor.fetchone()[0]
-            
-            conn.close()
-            
-            self.add_check_result(
-                "Database Connection", 
-                True, 
-                f"Connected successfully, {order_count} orders in database"
-            )
-            return True
-            
-        except Exception as e:
-            self.add_check_result("Database Connection", False, f"Error: {e}")
-            return False
-    
-    def check_api_connectivity(self) -> bool:
-        """Check API connectivity"""
-        try:
-            api_ingestion = APIIngestion()
-            
-            # Test API connection
-            connection_test = api_ingestion.test_api_connection()
-            
-            if connection_test['success']:
-                self.add_check_result(
-                    "API Connectivity", 
-                    True, 
-                    f"Connected to {connection_test['base_url']} ({connection_test['response_time']:.2f}s)"
-                )
-                api_ingestion.close()
-                return True
-            else:
-                self.add_check_result(
-                    "API Connectivity", 
-                    False, 
-                    f"Connection failed: {connection_test['error_message']}"
-                )
-                api_ingestion.close()
-                return False
-                
-        except Exception as e:
-            self.add_check_result("API Connectivity", False, f"Error: {e}")
-            return False
-    
-    def check_sample_data(self) -> bool:
-        """Check if sample data is available"""
-        try:
-            sample_files_found = 0
-            
-            # Check for CSV sample files
-            csv_dir = f"{config.file.input_dir}/csv"
-            if os.path.exists(csv_dir):
-                csv_files = [f for f in os.listdir(csv_dir) if f.endswith('.csv')]
-                sample_files_found += len(csv_files)
-            
-            # Check for JSON sample files
-            json_dir = f"{config.file.input_dir}/json"
-            if os.path.exists(json_dir):
-                json_files = [f for f in os.listdir(json_dir) if f.endswith('.json')]
-                sample_files_found += len(json_files)
-            
-            if sample_files_found > 0:
-                self.add_check_result(
-                    "Sample Data", 
-                    True, 
-                    f"Found {sample_files_found} sample files"
-                )
-                return True
-            else:
-                self.add_check_result(
-                    "Sample Data", 
-                    False, 
-                    "No sample files found. Run: python scripts/generate_sample_data.py"
-                )
-                return False
-                
-        except Exception as e:
-            self.add_check_result("Sample Data", False, f"Error: {e}")
-            return False
-    
-    def check_configuration(self) -> bool:
-        """Check configuration validity"""
-        try:
-            # Validate configuration
-            validation = config.validate_config()
-            
-            if validation['is_valid']:
-                self.add_check_result(
-                    "Configuration", 
-                    True, 
-                    "All configuration settings are valid"
-                )
-                return True
-            else:
-                self.add_check_result(
-                    "Configuration", 
-                    False, 
-                    f"Configuration issues: {', '.join(validation['issues'])}"
-                )
-                return False
-                
-        except Exception as e:
-            self.add_check_result("Configuration", False, f"Error: {e}")
-            return False
-    
-    def check_disk_space(self) -> bool:
-        """Check available disk space"""
-        try:
-            import shutil
-            
-            # Check disk space for data directory
-            data_dir = "data"
-            if os.path.exists(data_dir):
-                total, used, free = shutil.disk_usage(data_dir)
-                
-                # Convert to MB
-                free_mb = free // (1024 * 1024)
-                total_mb = total // (1024 * 1024)
-                
-                # Check if we have at least 100MB free
-                if free_mb >= 100:
-                    self.add_check_result(
-                        "Disk Space", 
-                        True, 
-                        f"{free_mb:,} MB free of {total_mb:,} MB total"
-                    )
-                    return True
-                else:
-                    self.add_check_result(
-                        "Disk Space", 
-                        False, 
-                        f"Low disk space: {free_mb:,} MB free (need at least 100 MB)"
-                    )
-                    return False
-            else:
-                self.add_check_result("Disk Space", False, "Data directory not found")
-                return False
-                
-        except Exception as e:
-            self.add_check_result("Disk Space", False, f"Error: {e}")
-            return False
-    
-    def check_permissions(self) -> bool:
-        """Check file system permissions"""
-        try:
-            test_dirs = [
-                config.file.input_dir,
-                config.file.output_dir,
-                "logs"
-            ]
-            
-            permission_issues = []
-            
-            for test_dir in test_dirs:
-                # Test write permission
-                test_file = os.path.join(test_dir, f"test_write_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tmp")
-                
-                try:
-                    with open(test_file, 'w') as f:
-                        f.write("test")
-                    os.remove(test_file)
-                    logger.debug(f"Write permission OK for {test_dir}")
-                except Exception as e:
-                    permission_issues.append(f"{test_dir}: {e}")
-            
-            if not permission_issues:
-                self.add_check_result(
-                    "File Permissions", 
-                    True, 
-                    f"Write permissions OK for {len(test_dirs)} directories"
-                )
-                return True
-            else:
-                self.add_check_result(
-                    "File Permissions", 
-                    False, 
-                    f"Permission issues: {', '.join(permission_issues)}"
-                )
-                return False
-                
-        except Exception as e:
-            self.add_check_result("File Permissions", False, f"Error: {e}")
-            return False
-    
-    def run_all_checks(self) -> bool:
-        """Run all health checks"""
-        print("🔍 Running system health checks...\n")
-        
-        # Run all checks
-        checks_to_run = [
-            self.check_python_version,
-            self.check_required_packages,
-            self.check_directory_structure,
-            self.check_configuration,
-            self.check_database_connection,
-            self.check_api_connectivity,
-            self.check_sample_data,
-            self.check_disk_space,
-            self.check_permissions
-        ]
-        
-        for check_func in checks_to_run:
-            try:
-                check_func()
+                Path(directory).mkdir(parents=True, exist_ok=True)
+                print(f"   🔧 Created {directory}")
             except Exception as e:
-                logger.error(f"Error running check {check_func.__name__}: {e}")
-                self.add_check_result(check_func.__name__, False, f"Check error: {e}")
-        
-        # Print summary
-        print(f"\n{'='*60}")
-        print("HEALTH CHECK SUMMARY")
-        print(f"{'='*60}")
-        print(f"Total checks: {len(self.checks)}")
-        print(f"Passed: {self.passed_checks}")
-        print(f"Failed: {self.failed_checks}")
-        
-        if self.failed_checks == 0:
-            print("🎉 All systems are healthy!")
-            print("💡 You can now run the data ingestion pipeline!")
-        else:
-            print(f"⚠️  {self.failed_checks} issues found. Please fix them before running the pipeline.")
-            print("\nFailed checks:")
-            for check in self.checks:
-                if not check['passed']:
-                    print(f"  ❌ {check['name']}: {check['message']}")
-        
-        print(f"{'='*60}")
-        
-        return self.failed_checks == 0
+                print(f"   ⚠️ Failed to create {directory}: {e}")
     
-    def generate_health_report(self) -> str:
-        """Generate detailed health report"""
-        report = []
-        report.append("# System Health Report")
-        report.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report.append("")
-        
-        report.append("## Summary")
-        report.append(f"- Total checks: {len(self.checks)}")
-        report.append(f"- Passed: {self.passed_checks}")
-        report.append(f"- Failed: {self.failed_checks}")
-        report.append(f"- Success rate: {(self.passed_checks / len(self.checks) * 100):.1f}%")
-        report.append("")
-        
-        report.append("## Detailed Results")
-        for check in self.checks:
-            status_icon = "✅" if check['passed'] else "❌"
-            report.append(f"### {status_icon} {check['name']}")
-            if check['message']:
-                report.append(f"**Details:** {check['message']}")
-            report.append("")
-        
-        if self.failed_checks > 0:
-            report.append("## Recommendations")
-            for check in self.checks:
-                if not check['passed']:
-                    if "Missing packages" in check['message']:
-                        report.append("- Install missing packages: `pip install -r requirements.txt`")
-                    elif "Database" in check['name']:
-                        report.append("- Initialize database: `python scripts/setup_database.py`")
-                    elif "Sample Data" in check['name']:
-                        report.append("- Generate sample data: `python scripts/generate_sample_data.py`")
-                    elif "API" in check['name']:
-                        report.append("- Check internet connection and API endpoint")
-        
-        return "\n".join(report)
+    return all_exist
 
-def main():
-    """Main function to run health checks"""
-    print("🚀 Starting system health check...")
+def check_database():
+    """Check database connectivity"""
+    print("\n🗄️ Database Check")
     
     try:
-        checker = HealthChecker()
-        all_healthy = checker.run_all_checks()
+        # Try to import config
+        from src.utils.config import config
+        db_path = config.database.path
+    except ImportError:
+        db_path = "data/orders.db"
+    
+    print(f"   Database path: {db_path}")
+    
+    if not os.path.exists(db_path):
+        print("   ❌ Database file not found")
+        print("   💡 Run: python scripts/setup_database.py")
+        return False
+    
+    try:
+        # Test database connection
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         
-        # Generate and save report
-        report = checker.generate_health_report()
-        report_file = "logs/health_check_report.md"
+        # Check if tables exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
+        table_names = [table[0] for table in tables]
         
-        ensure_directory_exists(os.path.dirname(report_file))
-        with open(report_file, 'w') as f:
-            f.write(report)
+        required_tables = ['orders', 'customers', 'products', 'pipeline_runs']
+        missing_tables = [table for table in required_tables if table not in table_names]
         
-        print(f"\n📄 Detailed report saved to: {report_file}")
+        if missing_tables:
+            print(f"   ❌ Missing tables: {', '.join(missing_tables)}")
+            print("   💡 Run: python scripts/setup_database.py")
+            conn.close()
+            return False
         
-        return 0 if all_healthy else 1
+        # Get record counts
+        for table in required_tables:
+            cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            count = cursor.fetchone()[0]
+            print(f"   ✅ {table}: {count:,} records")
+        
+        conn.close()
+        
+        # Check database size
+        db_size_mb = os.path.getsize(db_path) / (1024 * 1024)
+        print(f"   📊 Database size: {db_size_mb:.2f} MB")
+        
+        return True
         
     except Exception as e:
-        logger.error(f"Health check failed with error: {e}")
-        print(f"❌ Health check failed: {e}")
+        print(f"   ❌ Database error: {e}")
+        return False
+
+def check_api_connectivity():
+    """Check API connectivity"""
+    print("\n🌐 API Connectivity Check")
+    
+    try:
+        # Try to import config
+        from src.utils.config import config
+        base_url = config.api.base_url
+    except ImportError:
+        base_url = "https://jsonplaceholder.typicode.com"
+    
+    print(f"   API URL: {base_url}")
+    
+    try:
+        # Test API connection
+        response = requests.get(f"{base_url}/posts/1", timeout=10)
+        
+        if response.status_code == 200:
+            print(f"   ✅ API accessible (response time: {response.elapsed.total_seconds():.2f}s)")
+            return True
+        else:
+            print(f"   ❌ API returned status code: {response.status_code}")
+            return False
+            
+    except requests.exceptions.ConnectionError:
+        print("   ❌ Cannot connect to API (network error)")
+        return False
+    except requests.exceptions.Timeout:
+        print("   ❌ API request timeout")
+        return False
+    except Exception as e:
+        print(f"   ❌ API error: {e}")
+        return False
+
+def check_configuration():
+    """Check configuration files"""
+    print("\n⚙️ Configuration Check")
+    
+    config_files = [
+        'config/pipeline_config.yaml',
+        'config/database_config.yaml',
+        'config/api_config.yaml'
+    ]
+    
+    all_exist = True
+    
+    for config_file in config_files:
+        if os.path.exists(config_file):
+            print(f"   ✅ {config_file}")
+        else:
+            print(f"   ⚠️ {config_file} (optional, using defaults)")
+    
+    # Test config loading
+    try:
+        from src.utils.config import config
+        print("   ✅ Configuration loaded successfully")
+        return True
+    except Exception as e:
+        print(f"   ❌ Configuration error: {e}")
+        return False
+
+def check_disk_space():
+    """Check available disk space"""
+    print("\n💾 Disk Space Check")
+    
+    try:
+        import shutil
+        
+        # Check space in current directory
+        total, used, free = shutil.disk_usage('.')
+        
+        free_gb = free / (1024**3)
+        total_gb = total / (1024**3)
+        used_percent = (used / total) * 100
+        
+        print(f"   Total space: {total_gb:.1f} GB")
+        print(f"   Free space: {free_gb:.1f} GB")
+        print(f"   Used: {used_percent:.1f}%")
+        
+        if free_gb > 1.0:  # At least 1GB free
+            print("   ✅ Sufficient disk space")
+            return True
+        else:
+            print("   ⚠️ Low disk space (less than 1GB free)")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Cannot check disk space: {e}")
+        return False
+
+def check_permissions():
+    """Check file permissions"""
+    print("\n🔐 Permissions Check")
+    
+    test_dirs = ['data', 'logs']
+    all_writable = True
+    
+    for directory in test_dirs:
+        try:
+            # Test write permission
+            test_file = os.path.join(directory, f'test_write_{datetime.now().strftime("%Y%m%d_%H%M%S")}.tmp')
+            
+            # Create directory if it doesn't exist
+            Path(directory).mkdir(parents=True, exist_ok=True)
+            
+            # Try to write a test file
+            with open(test_file, 'w') as f:
+                f.write('test')
+            
+            # Clean up test file
+            os.remove(test_file)
+            
+            print(f"   ✅ {directory} (writable)")
+            
+        except Exception as e:
+            print(f"   ❌ {directory} (not writable): {e}")
+            all_writable = False
+    
+    return all_writable
+
+def run_sample_pipeline_test():
+    """Run a minimal pipeline test"""
+    print("\n🧪 Sample Pipeline Test")
+    
+    try:
+        # Try to import and create a simple pipeline component
+        from src.ingestion.file_ingestion import FileIngestion
+        
+        # Create file ingestion instance
+        file_ingestion = FileIngestion()
+        print("   ✅ File ingestion module loaded")
+        
+        # Test file discovery (should not fail even if no files)
+        new_files = file_ingestion.discover_new_files()
+        print(f"   ✅ File discovery works ({len(new_files['csv'])} CSV, {len(new_files['json'])} JSON files found)")
+        
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ Pipeline test failed: {e}")
+        return False
+
+def main():
+    """Main health check function"""
+    print("🏥 System Health Check")
+    print("=" * 50)
+    print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    checks = [
+        ("Python Version", check_python_version),
+        ("Dependencies", check_dependencies),
+        ("Directories", check_directories),
+        ("Database", check_database),
+        ("API Connectivity", check_api_connectivity),
+        ("Configuration", check_configuration),
+        ("Disk Space", check_disk_space),
+        ("Permissions", check_permissions),
+        ("Pipeline Test", run_sample_pipeline_test)
+    ]
+    
+    results = []
+    
+    for check_name, check_func in checks:
+        try:
+            result = check_func()
+            results.append((check_name, result))
+        except Exception as e:
+            print(f"   ❌ {check_name} check failed: {e}")
+            results.append((check_name, False))
+    
+    # Summary
+    print("\n" + "=" * 50)
+    print("📊 Health Check Summary")
+    print("=" * 50)
+    
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for check_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status} {check_name}")
+    
+    print(f"\n🎯 Overall: {passed}/{total} checks passed ({passed/total*100:.0f}%)")
+    
+    if passed == total:
+        print("\n🎉 All systems are healthy! You can run the pipeline.")
+        print("💡 Next step: python scripts/run_pipeline.py")
+        return 0
+    else:
+        print(f"\n⚠️ {total - passed} issues found. Please fix them before running the pipeline.")
+        
+        # Provide specific guidance
+        failed_checks = [name for name, result in results if not result]
+        
+        if "Dependencies" in failed_checks:
+            print("   📦 Install missing packages: pip install -r requirements.txt")
+        
+        if "Database" in failed_checks:
+            print("   🗄️ Set up database: python scripts/setup_database.py")
+        
+        if "Directories" in failed_checks:
+            print("   📁 Directories were created automatically")
+        
         return 1
 
 if __name__ == "__main__":
