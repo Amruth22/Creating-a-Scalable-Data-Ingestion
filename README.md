@@ -353,21 +353,45 @@ python scripts/health_check.py
 
 ## 🚀 Quick Start Guide
 
-### 🎯 **Option 1: Run Complete Pipeline**
-```bash
-# Execute the full data ingestion pipeline
-python scripts/run_pipeline.py
+### 📋 **Step-by-Step Process**
 
-# This will:
-# 1. 📥 Collect data from all sources
-# 2. 🔍 Validate data quality
-# 3. 🧹 Clean and transform data
-# 4. 💾 Store in database
-# 5. 📊 Generate reports
-# 6. 📝 Log all activities
+#### **Step 1: Setup Database** 🗄️
+```bash
+python scripts/setup_database.py
+```
+**What this does**: Creates the database and tables where your data will be stored
+
+#### **Step 2: Generate Sample Data** 📊
+```bash
+python scripts/generate_sample_data.py
+```
+**What this does**: Creates fake CSV and JSON files in your input folders (so the pipeline has something to process)
+
+#### **Step 3: Run the Pipeline** 🚀
+```bash
+python scripts/run_pipeline.py
+```
+**What this does**: Runs the complete data processing pipeline
+
+### 🎯 **Complete Setup (All Steps)**
+```bash
+# Step 1: Setup database and tables
+python scripts/setup_database.py
+
+# Step 2: Generate sample data files
+python scripts/generate_sample_data.py
+
+# Step 3: Run the complete pipeline
+python scripts/run_pipeline.py
 ```
 
-### 📚 **Option 2: Follow Interactive Tutorials**
+### 🤔 **Why Generate Sample Data?**
+- **Without sample data**: Pipeline only gets data from the API
+- **With sample data**: Pipeline processes CSV files + JSON files + API data = **complete demo**
+
+### 🎯 **Alternative Options**
+
+#### **📚 Option A: Follow Interactive Tutorials**
 ```bash
 # Start Jupyter notebook server
 jupyter notebook
@@ -382,7 +406,7 @@ jupyter notebook
 # 7. notebooks/07_monitoring_pipeline.ipynb
 ```
 
-### 🧪 **Option 3: Test Individual Components**
+#### **🧪 Option B: Test Individual Components**
 ```bash
 # Test file ingestion
 python -m src.ingestion.file_ingestion
@@ -404,6 +428,14 @@ python -m src.pipeline.pipeline_manager
 
 # Run all tests
 python -m pytest tests/ -v
+```
+
+#### **⚡ Option C: Quick Demo (API Only)**
+```bash
+# Skip sample data generation and run with API data only
+python scripts/run_pipeline.py
+
+# This will process ~100 records from the demo API
 ```
 
 ---
