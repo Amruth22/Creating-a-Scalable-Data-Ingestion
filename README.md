@@ -387,7 +387,16 @@ python -m src.ingestion.api_ingestion
 # Test data validation
 python -m src.validation.data_validator
 
+# Test data transformation
+python -m src.transformation.data_cleaner
+
+# Test database operations
+python -m src.storage.database_manager
+
 # Test complete pipeline
+python -m src.pipeline.pipeline_manager
+
+# Run all tests
 python -m pytest tests/ -v
 ```
 
@@ -480,57 +489,86 @@ print(f"Collected {len(json_data)} JSON records")
 ```python
 # Data Validation Example
 from src.validation.data_validator import DataValidator
+from src.validation.schema_validator import SchemaValidator
 
-validator = DataValidator()
+# Data quality validation
+data_validator = DataValidator()
+validation_result = data_validator.validate_orders(csv_data)
 
-# Validate data quality
-validation_results = validator.validate_orders(csv_data)
+print(f"Quality Score: {validation_result.quality_score:.1f}%")
+print(f"Valid Records: {validation_result.valid_records}/{validation_result.total_records}")
 
-if validation_results['is_valid']:
-    print("✅ Data validation passed!")
-else:
-    print(f"❌ Validation failed: {validation_results['errors']}")
+# Schema validation
+schema_validator = SchemaValidator()
+schema_result = schema_validator.validate_schema(csv_data, 'orders')
+
+print(f"Schema Valid: {schema_result.is_valid}")
+print(f"Valid Fields: {schema_result.valid_fields}/{schema_result.total_fields}")
 ```
 
 ### 🧹 **Stage 3: Data Transformation**
 ```python
 # Data Transformation Example
 from src.transformation.data_cleaner import DataCleaner
+from src.transformation.data_enricher import DataEnricher
+from src.transformation.data_standardizer import DataStandardizer
 
+# Clean data
 cleaner = DataCleaner()
+cleaning_result = cleaner.clean_orders(csv_data)
+print(f"Cleaned: {cleaning_result.cleaned_records}/{cleaning_result.original_records} records")
 
-# Clean and standardize data
-cleaned_data = cleaner.clean_orders(csv_data)
+# Enrich data
+enricher = DataEnricher()
+enrichment_result = enricher.enrich_orders(cleaning_result.data)
+print(f"Enriched: {enrichment_result.added_fields} fields added")
 
-# Add calculated fields
-enriched_data = cleaner.enrich_orders(cleaned_data)
-
-print(f"Transformed {len(enriched_data)} records")
+# Standardize data
+standardizer = DataStandardizer()
+standardization_result = standardizer.standardize_orders(enrichment_result.data)
+print(f"Standardized: {standardization_result.fields_standardized} fields")
 ```
 
 ### 💾 **Stage 4: Data Storage**
 ```python
 # Data Storage Example
 from src.storage.database_manager import DatabaseManager
+from src.storage.file_manager import FileManager
 
-db = DatabaseManager()
+# Database storage
+db_manager = DatabaseManager()
+db_result = db_manager.save_orders(processed_data)
+print(f"Database: {db_result.records_affected} records saved")
 
-# Save to database
-result = db.save_orders(enriched_data)
+# File storage and export
+file_manager = FileManager()
+export_result = file_manager.export_data_summary(processed_data, "daily_export")
+print(f"Files: {export_result.files_affected} files created")
 
-print(f"Saved {result['saved_count']} orders to database")
+# Get database statistics
+stats_result = db_manager.get_database_stats()
+if stats_result.success:
+    stats = stats_result.data.iloc[0]
+    print(f"Total orders in DB: {stats['orders_count']}")
 ```
 
-### 📊 **Stage 5: Reporting**
+### 📊 **Stage 5: Pipeline Orchestration**
 ```python
-# Generate Reports
-from src.utils.report_generator import ReportGenerator
+# Complete Pipeline Execution
+from src.pipeline.pipeline_manager import PipelineManager
 
-reporter = ReportGenerator()
+# Initialize and run pipeline
+pipeline = PipelineManager("production_pipeline")
+result = pipeline.run_pipeline()
 
-# Create daily summary
-daily_report = reporter.generate_daily_summary()
-print(f"Generated report: {daily_report['filename']}")
+print(f"Pipeline Status: {'✅ SUCCESS' if result.success else '❌ FAILED'}")
+print(f"Records Processed: {result.total_records_processed:,}")
+print(f"Execution Time: {result.execution_time:.2f}s")
+print(f"Stages Completed: {', '.join(result.stages_completed)}")
+
+# Generate comprehensive report
+report = pipeline.generate_pipeline_report(result)
+print(f"Report generated: {len(report)} characters")
 ```
 
 ---
@@ -933,7 +971,13 @@ def generate_dashboard_data():
 
 ## 🧪 Testing Your Pipeline
 
-Testing is crucial for reliable data pipelines. Our project includes comprehensive tests:
+Testing is crucial for reliable data pipelines. Our project includes comprehensive tests for all components:
+
+### 🎯 **Available Test Suites:**
+- **Unit Tests**: Individual component testing
+- **Integration Tests**: End-to-end pipeline testing
+- **Data Quality Tests**: Validation and transformation testing
+- **Performance Tests**: Load and stress testing
 
 ### 🔧 **Unit Tests**
 
@@ -1036,14 +1080,20 @@ class TestPipeline(unittest.TestCase):
 # Run all tests
 python -m pytest tests/ -v
 
-# Run specific test file
-python -m pytest tests/test_validation.py -v
+# Run specific test categories
+python -m pytest tests/test_validation.py -v      # Validation tests
+python -m pytest tests/test_transformation.py -v # Transformation tests
+python -m pytest tests/test_storage.py -v        # Storage tests
+python -m pytest tests/test_pipeline.py -v       # Pipeline tests
 
 # Run tests with coverage
 python -m pytest tests/ --cov=src --cov-report=html
 
 # Run tests and generate report
 python -m pytest tests/ --html=test_report.html
+
+# Run performance tests
+python -m pytest tests/test_performance.py -v
 ```
 
 ### 📊 **Test Coverage**
@@ -1311,6 +1361,17 @@ assert data['price'].min() > 0, "All prices should be positive"
 
 ## 🎯 Next Steps
 
+### 🎉 **What You've Built:**
+Congratulations! You now have a **complete, production-ready data ingestion pipeline** with:
+- ✅ **Multi-source data ingestion** (Files, APIs, Databases)
+- ✅ **Comprehensive data validation** (Schema + Quality)
+- ✅ **Advanced data transformation** (Cleaning, Enrichment, Standardization)
+- ✅ **Robust data storage** (Database + File management)
+- ✅ **Pipeline orchestration** (Automated workflow)
+- ✅ **Monitoring and logging** (Performance tracking)
+- ✅ **Error handling and recovery** (Fault tolerance)
+- ✅ **Comprehensive reporting** (Detailed analytics)
+
 ### 🚀 **Enhance This Project:**
 
 1. **📊 Add More Data Sources:**
@@ -1355,11 +1416,14 @@ assert data['price'].min() > 0, "All prices should be positive"
 
 ### 📚 **Learn More About:**
 
-- **🔄 Apache Kafka**: [Kafka Documentation](https://kafka.apache.org/documentation/)
-- **📅 Apache Airflow**: [Airflow Tutorial](https://airflow.apache.org/docs/apache-airflow/stable/tutorial.html)
-- **⚡ Apache Spark**: [Spark Programming Guide](https://spark.apache.org/docs/latest/programming-guide.html)
-- **🐳 Docker**: [Docker for Data Engineering](https://docs.docker.com/)
-- **☁️ Cloud Platforms**: [AWS Data Engineering](https://aws.amazon.com/big-data/)
+- **🔄 Apache Kafka**: [Kafka Documentation](https://kafka.apache.org/documentation/) - Stream processing
+- **📅 Apache Airflow**: [Airflow Tutorial](https://airflow.apache.org/docs/apache-airflow/stable/tutorial.html) - Workflow orchestration
+- **⚡ Apache Spark**: [Spark Programming Guide](https://spark.apache.org/docs/latest/programming-guide.html) - Big data processing
+- **🐳 Docker**: [Docker for Data Engineering](https://docs.docker.com/) - Containerization
+- **☁️ Cloud Platforms**: [AWS Data Engineering](https://aws.amazon.com/big-data/) - Cloud deployment
+- **📊 dbt**: [dbt Documentation](https://docs.getdbt.com/) - Data transformation
+- **🔍 Great Expectations**: [GE Docs](https://docs.greatexpectations.io/) - Data quality
+- **📈 Grafana**: [Grafana Docs](https://grafana.com/docs/) - Monitoring dashboards
 
 ### 🎓 **Career Paths:**
 
