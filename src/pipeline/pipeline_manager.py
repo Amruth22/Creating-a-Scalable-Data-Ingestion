@@ -221,9 +221,21 @@ class PipelineManager:
                 ingestion_summary['file_ingestion']['success'] = file_result['successful_files'] > 0
                 
                 if file_result['successful_files'] > 0:
-                    # Get combined data from file ingestion
-                    file_data = self.file_ingestion.get_combined_data()
-                    if file_data is not None and not file_data.empty:
+                    # Collect data from successful file processing results BEFORE files are moved
+                    successful_results = [
+                        result for result in file_result['results'] 
+                        if result['success'] and result.get('data') is not None
+                    ]
+                    
+                    if successful_results:
+                        # Combine all DataFrames from successful results
+                        file_dataframes = [result['data'] for result in successful_results]
+                        file_data = pd.concat(file_dataframes, ignore_index=True)
+                        
+                        # Remove duplicates based on order_id if present
+                        if 'order_id' in file_data.columns:
+                            file_data = file_data.drop_duplicates(subset=['order_id'], keep='first')
+                        
                         all_data.append(file_data)
                         ingestion_summary['file_ingestion']['records'] = len(file_data)
                         logger.info(f"📁 File ingestion: {len(file_data)} records")
