@@ -10,12 +10,27 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add project root and src to path for imports
+project_root = os.path.join(os.path.dirname(__file__), '..')
+src_path = os.path.join(project_root, 'src')
+sys.path.insert(0, project_root)
+sys.path.insert(0, src_path)
 
-from pipeline.pipeline_manager import PipelineManager
-from utils.config import config
-from utils.helpers import ensure_directory_exists, format_duration
+try:
+    from src.pipeline.pipeline_manager import PipelineManager
+    from src.utils.config import config
+    from src.utils.helpers import ensure_directory_exists, format_duration
+except ImportError:
+    # Fallback for different import styles
+    try:
+        from pipeline.pipeline_manager import PipelineManager
+        from utils.config import config
+        from utils.helpers import ensure_directory_exists, format_duration
+    except ImportError as e:
+        print(f"❌ Import Error: {e}")
+        print("Please make sure you're running from the project root directory")
+        print("Try: cd Creating-a-Scalable-Data-Ingestion && python scripts/run_pipeline.py")
+        sys.exit(1)
 
 def setup_logging(log_level: str = "INFO"):
     """Setup comprehensive logging"""
@@ -157,6 +172,8 @@ def run_pipeline_with_options(args):
     except Exception as e:
         logger.error(f"❌ Pipeline execution failed: {e}")
         print(f"\n❌ Pipeline execution failed: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 def print_results(result, total_time):
@@ -329,6 +346,8 @@ Examples:
         logger.error(f"Unexpected error: {e}")
         print(f"\n💥 Unexpected error: {e}")
         print(f"📝 Check log file for details: {log_file}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
