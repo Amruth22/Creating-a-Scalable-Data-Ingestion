@@ -1,0 +1,611 @@
+# Data Validation Configuration
+# Configuration for data quality validation, schema validation, and business rules
+
+# Global Validation Settings
+global_settings:
+  # Quality thresholds
+  quality_thresholds:
+    excellent: 95    # 95-100%
+    good: 85        # 85-94%
+    fair: 70        # 70-84%
+    poor: 50        # 50-69%
+    critical: 0     # 0-49%
+    
+  # Error handling
+  error_handling:
+    stop_on_critical: true
+    max_errors_per_field: 100
+    max_total_errors: 1000
+    continue_on_warnings: true
+    
+  # Validation modes
+  validation_modes:
+    strict: false           # Fail on any validation error
+    permissive: true        # Allow warnings and minor errors
+    schema_only: false      # Only validate schema, skip data quality
+    quality_only: false     # Only validate data quality, skip schema
+
+# Schema Validation Configuration
+schema_validation:
+  enabled: true
+  
+  # Orders schema definition
+  orders_schema:
+    table_name: "orders"
+    description: "E-commerce orders data schema"
+    
+    # Required fields (must be present)
+    required_fields:
+      - field_name: "order_id"
+        data_type: "string"
+        description: "Unique order identifier"
+        
+      - field_name: "customer_name"
+        data_type: "string"
+        description: "Customer full name"
+        
+      - field_name: "product"
+        data_type: "string"
+        description: "Product name"
+        
+      - field_name: "quantity"
+        data_type: "integer"
+        description: "Order quantity"
+        
+      - field_name: "price"
+        data_type: "float"
+        description: "Unit price"
+        
+      - field_name: "order_date"
+        data_type: "date"
+        description: "Order date"
+        
+    # Optional fields (can be missing)
+    optional_fields:
+      - field_name: "customer_email"
+        data_type: "string"
+        description: "Customer email address"
+        
+      - field_name: "product_category"
+        data_type: "string"
+        description: "Product category"
+        
+      - field_name: "discount"
+        data_type: "float"
+        description: "Discount amount"
+        
+      - field_name: "total_amount"
+        data_type: "float"
+        description: "Total order amount"
+        
+      - field_name: "store_location"
+        data_type: "string"
+        description: "Store location"
+        
+      - field_name: "source"
+        data_type: "string"
+        description: "Data source"
+        
+      - field_name: "notes"
+        data_type: "string"
+        description: "Order notes"
+        
+    # Data type definitions
+    data_types:
+      string:
+        python_type: "str"
+        pandas_dtype: "object"
+        null_allowed: true
+        
+      integer:
+        python_type: "int"
+        pandas_dtype: "int64"
+        null_allowed: false
+        
+      float:
+        python_type: "float"
+        pandas_dtype: "float64"
+        null_allowed: false
+        
+      date:
+        python_type: "datetime"
+        pandas_dtype: "datetime64[ns]"
+        null_allowed: false
+        formats: ["YYYY-MM-DD", "YYYY-MM-DD HH:MM:SS", "MM/DD/YYYY"]
+        
+      boolean:
+        python_type: "bool"
+        pandas_dtype: "bool"
+        null_allowed: false
+        
+  # Customers schema definition
+  customers_schema:
+    table_name: "customers"
+    description: "Customer data schema"
+    
+    required_fields:
+      - field_name: "customer_id"
+        data_type: "string"
+      - field_name: "customer_name"
+        data_type: "string"
+      - field_name: "email"
+        data_type: "string"
+        
+    optional_fields:
+      - field_name: "phone"
+        data_type: "string"
+      - field_name: "address"
+        data_type: "string"
+      - field_name: "city"
+        data_type: "string"
+      - field_name: "state"
+        data_type: "string"
+      - field_name: "country"
+        data_type: "string"
+      - field_name: "postal_code"
+        data_type: "string"
+      - field_name: "registration_date"
+        data_type: "date"
+
+# Data Quality Validation Rules
+data_quality_rules:
+  # Order ID validation
+  order_id:
+    enabled: true
+    rules:
+      - name: "format_validation"
+        type: "regex"
+        pattern: "^[A-Z]{3}-\\d{4}-\\d{3}$"
+        description: "Order ID must follow format: XXX-YYYY-NNN"
+        severity: "error"
+        
+      - name: "uniqueness"
+        type: "unique"
+        description: "Order ID must be unique"
+        severity: "error"
+        
+      - name: "not_null"
+        type: "not_null"
+        description: "Order ID cannot be null"
+        severity: "critical"
+        
+      - name: "length_check"
+        type: "length"
+        min_length: 11
+        max_length: 11
+        description: "Order ID must be exactly 11 characters"
+        severity: "error"
+        
+  # Customer name validation
+  customer_name:
+    enabled: true
+    rules:
+      - name: "not_null"
+        type: "not_null"
+        description: "Customer name cannot be null"
+        severity: "critical"
+        
+      - name: "not_empty"
+        type: "not_empty"
+        description: "Customer name cannot be empty"
+        severity: "critical"
+        
+      - name: "length_check"
+        type: "length"
+        min_length: 2
+        max_length: 100
+        description: "Customer name must be between 2 and 100 characters"
+        severity: "error"
+        
+      - name: "character_validation"
+        type: "regex"
+        pattern: "^[a-zA-Z\\s\\-']+$"
+        description: "Customer name can only contain letters, spaces, hyphens, and apostrophes"
+        severity: "warning"
+        
+      - name: "test_data_check"
+        type: "not_in"
+        values: ["test", "dummy", "sample", "example", "null", "none", "unknown"]
+        description: "Customer name should not be test data"
+        severity: "warning"
+        case_sensitive: false
+        
+  # Product validation
+  product:
+    enabled: true
+    rules:
+      - name: "not_null"
+        type: "not_null"
+        severity: "critical"
+        
+      - name: "not_empty"
+        type: "not_empty"
+        severity: "critical"
+        
+      - name: "length_check"
+        type: "length"
+        min_length: 2
+        max_length: 200
+        severity: "error"
+        
+      - name: "valid_products"
+        type: "in"
+        values: ["iPhone 15", "MacBook Pro", "iPad Air", "AirPods Pro", "Apple Watch", 
+                "Samsung Galaxy S24", "Nintendo Switch", "PlayStation 5", "Xbox Series X", 
+                "Kindle Paperwhite"]
+        description: "Product must be from approved list"
+        severity: "warning"
+        
+  # Quantity validation
+  quantity:
+    enabled: true
+    rules:
+      - name: "not_null"
+        type: "not_null"
+        severity: "critical"
+        
+      - name: "positive_value"
+        type: "range"
+        min_value: 1
+        max_value: null
+        description: "Quantity must be positive"
+        severity: "error"
+        
+      - name: "reasonable_quantity"
+        type: "range"
+        min_value: 1
+        max_value: 1000
+        description: "Quantity should be reasonable (1-1000)"
+        severity: "warning"
+        
+      - name: "integer_check"
+        type: "integer"
+        description: "Quantity must be a whole number"
+        severity: "error"
+        
+  # Price validation
+  price:
+    enabled: true
+    rules:
+      - name: "not_null"
+        type: "not_null"
+        severity: "critical"
+        
+      - name: "positive_value"
+        type: "range"
+        min_value: 0.01
+        max_value: null
+        description: "Price must be positive"
+        severity: "error"
+        
+      - name: "reasonable_price"
+        type: "range"
+        min_value: 0.01
+        max_value: 50000.00
+        description: "Price should be reasonable ($0.01 - $50,000)"
+        severity: "warning"
+        
+      - name: "decimal_places"
+        type: "decimal_places"
+        max_places: 2
+        description: "Price should have at most 2 decimal places"
+        severity: "warning"
+        
+  # Order date validation
+  order_date:
+    enabled: true
+    rules:
+      - name: "not_null"
+        type: "not_null"
+        severity: "critical"
+        
+      - name: "valid_date"
+        type: "date"
+        description: "Order date must be a valid date"
+        severity: "error"
+        
+      - name: "not_future"
+        type: "date_range"
+        max_date: "today"
+        description: "Order date cannot be in the future"
+        severity: "error"
+        
+      - name: "not_too_old"
+        type: "date_range"
+        min_date: "today - 5 years"
+        max_date: "today"
+        description: "Order date should not be more than 5 years old"
+        severity: "warning"
+        
+      - name: "business_hours"
+        type: "custom"
+        function: "validate_business_hours"
+        description: "Order should be placed during reasonable hours"
+        severity: "info"
+        
+  # Customer email validation
+  customer_email:
+    enabled: true
+    rules:
+      - name: "email_format"
+        type: "regex"
+        pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        description: "Email must be in valid format"
+        severity: "error"
+        allow_null: true
+        
+      - name: "domain_validation"
+        type: "custom"
+        function: "validate_email_domain"
+        description: "Email domain should be valid"
+        severity: "warning"
+        allow_null: true
+        
+  # Discount validation
+  discount:
+    enabled: true
+    rules:
+      - name: "non_negative"
+        type: "range"
+        min_value: 0
+        max_value: null
+        description: "Discount cannot be negative"
+        severity: "error"
+        allow_null: true
+        
+      - name: "reasonable_discount"
+        type: "custom"
+        function: "validate_discount_vs_price"
+        description: "Discount should not exceed price"
+        severity: "error"
+        allow_null: true
+        
+  # Total amount validation
+  total_amount:
+    enabled: true
+    rules:
+      - name: "calculation_check"
+        type: "custom"
+        function: "validate_total_calculation"
+        description: "Total amount should equal (quantity * price) - discount"
+        severity: "error"
+        tolerance: 0.01
+        allow_null: true
+
+# Business Rules Validation
+business_rules:
+  enabled: true
+  
+  # Cross-field validation rules
+  cross_field_rules:
+    - name: "total_amount_calculation"
+      description: "Validate total amount calculation"
+      type: "calculation"
+      formula: "total_amount == (quantity * price) - discount"
+      tolerance: 0.01
+      severity: "error"
+      
+    - name: "discount_vs_price"
+      description: "Discount should not exceed price"
+      type: "comparison"
+      condition: "discount <= price"
+      severity: "error"
+      
+    - name: "reasonable_order_value"
+      description: "Order value should be reasonable"
+      type: "range"
+      field: "total_amount"
+      min_value: 0.01
+      max_value: 100000.00
+      severity: "warning"
+      
+  # Duplicate detection rules
+  duplicate_rules:
+    - name: "exact_duplicates"
+      description: "Detect exact duplicate records"
+      type: "exact"
+      severity: "warning"
+      
+    - name: "order_id_duplicates"
+      description: "Detect duplicate order IDs"
+      type: "field"
+      fields: ["order_id"]
+      severity: "error"
+      
+    - name: "suspicious_duplicates"
+      description: "Detect suspicious duplicate orders"
+      type: "field_combination"
+      fields: ["customer_name", "product", "order_date", "total_amount"]
+      severity: "warning"
+      
+  # Data consistency rules
+  consistency_rules:
+    - name: "source_consistency"
+      description: "Source field should be consistent with data origin"
+      type: "custom"
+      function: "validate_source_consistency"
+      severity: "warning"
+      
+    - name: "date_consistency"
+      description: "Order date should be consistent with processing date"
+      type: "custom"
+      function: "validate_date_consistency"
+      severity: "info"
+
+# Custom Validation Functions
+custom_functions:
+  validate_business_hours:
+    description: "Check if order was placed during business hours"
+    parameters:
+      business_start: "08:00"
+      business_end: "22:00"
+      timezone: "UTC"
+      
+  validate_email_domain:
+    description: "Validate email domain against known providers"
+    parameters:
+      allowed_domains: ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "company.com"]
+      block_disposable: true
+      
+  validate_discount_vs_price:
+    description: "Ensure discount doesn't exceed price"
+    parameters:
+      max_discount_percent: 90
+      
+  validate_total_calculation:
+    description: "Validate total amount calculation"
+    parameters:
+      tolerance: 0.01
+      
+  validate_source_consistency:
+    description: "Validate source field consistency"
+    parameters:
+      expected_sources: ["website", "mobile_app", "store", "partner", "api"]
+      
+  validate_date_consistency:
+    description: "Validate date consistency"
+    parameters:
+      max_future_days: 0
+      max_past_days: 1825  # 5 years
+
+# Validation Reporting
+reporting:
+  enabled: true
+  
+  # Report configuration
+  report_config:
+    include_summary: true
+    include_field_details: true
+    include_error_samples: true
+    max_error_samples: 10
+    include_statistics: true
+    
+  # Output formats
+  output_formats:
+    - format: "markdown"
+      enabled: true
+      file_path: "data/output/reports/validation_report_{timestamp}.md"
+      
+    - format: "json"
+      enabled: true
+      file_path: "data/output/reports/validation_report_{timestamp}.json"
+      
+    - format: "csv"
+      enabled: false
+      file_path: "data/output/reports/validation_errors_{timestamp}.csv"
+      
+  # Report sections
+  sections:
+    executive_summary:
+      enabled: true
+      include_quality_score: true
+      include_error_counts: true
+      include_recommendations: true
+      
+    field_analysis:
+      enabled: true
+      include_completeness: true
+      include_validity: true
+      include_uniqueness: true
+      
+    error_details:
+      enabled: true
+      group_by_severity: true
+      include_error_samples: true
+      max_errors_per_type: 20
+      
+    data_profiling:
+      enabled: true
+      include_statistics: true
+      include_distributions: false  # Can be resource intensive
+      
+# Performance Configuration
+performance:
+  # Sampling for large datasets
+  sampling:
+    enabled: true
+    sample_size: 10000
+    sampling_method: "random"  # random, systematic, stratified
+    min_dataset_size: 50000
+    
+  # Parallel processing
+  parallel_processing:
+    enabled: true
+    max_workers: 4
+    chunk_size: 1000
+    
+  # Memory management
+  memory_management:
+    max_memory_mb: 1024
+    chunk_processing: true
+    garbage_collection: true
+    
+  # Caching
+  caching:
+    enabled: true
+    cache_validation_results: true
+    cache_ttl_seconds: 3600
+
+# Environment-specific Validation Settings
+environments:
+  development:
+    global_settings:
+      validation_modes:
+        strict: false
+        permissive: true
+      error_handling:
+        max_errors_per_field: 50
+        max_total_errors: 500
+        
+    data_quality_rules:
+      order_id:
+        rules:
+          - name: "format_validation"
+            severity: "warning"  # Relaxed in dev
+            
+    performance:
+      sampling:
+        sample_size: 1000  # Smaller sample in dev
+        
+  staging:
+    global_settings:
+      quality_thresholds:
+        excellent: 90
+        good: 80
+        fair: 65
+        
+    reporting:
+      output_formats:
+        - format: "markdown"
+          enabled: true
+        - format: "json"
+          enabled: false
+          
+  production:
+    global_settings:
+      validation_modes:
+        strict: true
+        permissive: false
+      quality_thresholds:
+        excellent: 98
+        good: 90
+        fair: 80
+        
+    data_quality_rules:
+      order_id:
+        rules:
+          - name: "format_validation"
+            severity: "error"  # Strict in production
+            
+    performance:
+      sampling:
+        enabled: false  # Validate all data in production
+        
+    reporting:
+      output_formats:
+        - format: "markdown"
+          enabled: true
+        - format: "json"
+          enabled: true
+        - format: "csv"
+          enabled: true
