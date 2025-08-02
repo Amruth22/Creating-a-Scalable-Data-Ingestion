@@ -1,6 +1,6 @@
 """
-Data standardization module for consistent data formatting
-Ensures consistent formats, units, and representations across all data
+Data standardization module for format normalization and value standardization
+Ensures consistent formats, units, and representations across all data fields
 """
 
 import pandas as pd
@@ -8,11 +8,11 @@ import numpy as np
 import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
-from ..utils.helpers import validate_email, safe_divide
-from ..utils.constants import TimeFormat
+from ..utils.helpers import safe_divide, validate_email
+from ..utils.constants import DataSourceType
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -23,41 +23,109 @@ class StandardizationResult:
     success: bool
     records_processed: int
     fields_standardized: int
-    standardization_operations: List[str]
     standardization_time: float
     data: Optional[pd.DataFrame] = None
     errors: List[str] = None
 
 class DataStandardizer:
-    """Data standardizer for consistent formatting and representation"""
+    """Data standardizer for format normalization and value standardization"""
     
     def __init__(self):
         """Initialize data standardizer"""
-        self.currency_symbols = ['$', '€', '£', '¥', '₹']
-        self.phone_patterns = [
-            r'^\+?1?[-.\s]?\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})$',  # US format
-            r'^(\d{3})[-.\s]?(\d{3})[-.\s]?(\d{4})$',  # Simple US format
-            r'^\+(\d{1,3})[-.\s]?(\d{1,4})[-.\s]?(\d{1,4})[-.\s]?(\d{1,4})$'  # International
-        ]
-        
-        # Standard formats
-        self.standard_formats = {
-            'phone': '+1-XXX-XXX-XXXX',
-            'currency': '$X,XXX.XX',
-            'date': 'YYYY-MM-DD',
-            'datetime': 'YYYY-MM-DD HH:MM:SS',
-            'email': 'lowercase@domain.com',
-            'percentage': 'XX.X%'
-        }
+        self.phone_patterns = self._load_phone_patterns()
+        self.email_domains = self._load_email_domains()
+        self.address_abbreviations = self._load_address_abbreviations()
+        self.currency_symbols = self._load_currency_symbols()
         
         logger.info("Data standardizer initialized")
     
+    def _load_phone_patterns(self) -> Dict[str, str]:
+        """Load phone number standardization patterns"""
+        return {
+            r'^\+?1?[-.\s]?\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})$': r'+1-\1-\2-\3',
+            r'^(\d{3})[-.\s]?(\d{3})[-.\s]?(\d{4})$': r'+1-\1-\2-\3',
+            r'^\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})$': r'+1-\1-\2-\3'
+        }
+    
+    def _load_email_domains(self) -> Dict[str, str]:
+        """Load email domain standardization mappings"""
+        return {
+            'gmail.com': 'gmail.com',
+            'googlemail.com': 'gmail.com',
+            'yahoo.com': 'yahoo.com',
+            'ymail.com': 'yahoo.com',
+            'hotmail.com': 'outlook.com',
+            'live.com': 'outlook.com',
+            'msn.com': 'outlook.com'
+        }
+    
+    def _load_address_abbreviations(self) -> Dict[str, str]:
+        """Load address standardization mappings"""
+        return {
+            # Street types
+            'st': 'Street',
+            'street': 'Street',
+            'ave': 'Avenue',
+            'avenue': 'Avenue',
+            'blvd': 'Boulevard',
+            'boulevard': 'Boulevard',
+            'rd': 'Road',
+            'road': 'Road',
+            'dr': 'Drive',
+            'drive': 'Drive',
+            'ln': 'Lane',
+            'lane': 'Lane',
+            'ct': 'Court',
+            'court': 'Court',
+            'pl': 'Place',
+            'place': 'Place',
+            
+            # Directions
+            'n': 'North',
+            'north': 'North',
+            's': 'South',
+            'south': 'South',
+            'e': 'East',
+            'east': 'East',
+            'w': 'West',
+            'west': 'West',
+            'ne': 'Northeast',
+            'nw': 'Northwest',
+            'se': 'Southeast',
+            'sw': 'Southwest',
+            
+            # States (common abbreviations)
+            'ca': 'California',
+            'ny': 'New York',
+            'tx': 'Texas',
+            'fl': 'Florida',
+            'il': 'Illinois',
+            'pa': 'Pennsylvania',
+            'oh': 'Ohio',
+            'ga': 'Georgia',
+            'nc': 'North Carolina',
+            'mi': 'Michigan'
+        }
+    
+    def _load_currency_symbols(self) -> Dict[str, str]:
+        """Load currency symbol mappings"""
+        return {
+            '$': 'USD',
+            '€': 'EUR',
+            '£': 'GBP',
+            '¥': 'JPY',
+            '₹': 'INR',
+            '₽': 'RUB',
+            '₩': 'KRW',
+            '¢': 'USD_CENTS'
+        }
+    
     def standardize_orders(self, data: pd.DataFrame) -> StandardizationResult:
         """
-        Standardize order data formats
+        Standardize order data formats and values
         
         Args:
-            data (pd.DataFrame): Data to standardize
+            data (pd.DataFrame): Order data to standardize
             
         Returns:
             StandardizationResult: Standardization results
@@ -68,54 +136,62 @@ class DataStandardizer:
             logger.info(f"Starting data standardization for {len(data)} records")
             
             standardized_data = data.copy()
-            operations = []
             fields_standardized = 0
             
             # 1. Standardize text fields
-            text_fields = self._standardize_text_fields(standardized_data)
-            if text_fields['changed']:
-                operations.append(f"Standardized text fields: {', '.join(text_fields['fields'])}")
-                fields_standardized += len(text_fields['fields'])
+            text_fields = ['customer_name', 'product', 'store_location', 'notes']
+            for field in text_fields:
+                if field in standardized_data.columns:
+                    standardized_data = self._standardize_text_field(standardized_data, field)
+                    fields_standardized += 1
             
-            # 2. Standardize numeric fields
-            numeric_fields = self._standardize_numeric_fields(standardized_data)
-            if numeric_fields['changed']:
-                operations.append(f"Standardized numeric fields: {', '.join(numeric_fields['fields'])}")
-                fields_standardized += len(numeric_fields['fields'])
+            # 2. Standardize email addresses
+            if 'customer_email' in standardized_data.columns:
+                standardized_data = self._standardize_email_addresses(standardized_data)
+                fields_standardized += 1
             
-            # 3. Standardize date fields
-            date_fields = self._standardize_date_fields(standardized_data)
-            if date_fields['changed']:
-                operations.append(f"Standardized date fields: {', '.join(date_fields['fields'])}")
-                fields_standardized += len(date_fields['fields'])
+            # 3. Standardize phone numbers
+            phone_fields = ['customer_phone', 'contact_phone', 'phone']
+            for field in phone_fields:
+                if field in standardized_data.columns:
+                    standardized_data = self._standardize_phone_numbers(standardized_data, field)
+                    fields_standardized += 1
             
-            # 4. Standardize email fields
-            email_fields = self._standardize_email_fields(standardized_data)
-            if email_fields['changed']:
-                operations.append(f"Standardized email fields: {', '.join(email_fields['fields'])}")
-                fields_standardized += len(email_fields['fields'])
+            # 4. Standardize addresses
+            address_fields = ['address', 'billing_address', 'shipping_address', 'store_location']
+            for field in address_fields:
+                if field in standardized_data.columns:
+                    standardized_data = self._standardize_addresses(standardized_data, field)
+                    fields_standardized += 1
             
-            # 5. Standardize phone fields
-            phone_fields = self._standardize_phone_fields(standardized_data)
-            if phone_fields['changed']:
-                operations.append(f"Standardized phone fields: {', '.join(phone_fields['fields'])}")
-                fields_standardized += len(phone_fields['fields'])
+            # 5. Standardize dates
+            date_fields = ['order_date', 'delivery_date', 'created_at', 'updated_at']
+            for field in date_fields:
+                if field in standardized_data.columns:
+                    standardized_data = self._standardize_dates(standardized_data, field)
+                    fields_standardized += 1
             
-            # 6. Standardize categorical fields
-            categorical_fields = self._standardize_categorical_fields(standardized_data)
-            if categorical_fields['changed']:
-                operations.append(f"Standardized categorical fields: {', '.join(categorical_fields['fields'])}")
-                fields_standardized += len(categorical_fields['fields'])
+            # 6. Standardize numeric fields
+            numeric_fields = ['price', 'quantity', 'discount', 'total_amount']
+            for field in numeric_fields:
+                if field in standardized_data.columns:
+                    standardized_data = self._standardize_numeric_field(standardized_data, field)
+                    fields_standardized += 1
             
-            # 7. Standardize ID fields
-            id_fields = self._standardize_id_fields(standardized_data)
-            if id_fields['changed']:
-                operations.append(f"Standardized ID fields: {', '.join(id_fields['fields'])}")
-                fields_standardized += len(id_fields['fields'])
+            # 7. Standardize categorical fields
+            categorical_fields = ['source', 'product_category', 'customer_segment']
+            for field in categorical_fields:
+                if field in standardized_data.columns:
+                    standardized_data = self._standardize_categorical_field(standardized_data, field)
+                    fields_standardized += 1
             
-            # 8. Add standardization metadata
+            # 8. Standardize order IDs
+            if 'order_id' in standardized_data.columns:
+                standardized_data = self._standardize_order_ids(standardized_data)
+                fields_standardized += 1
+            
+            # 9. Add standardization metadata
             standardized_data = self._add_standardization_metadata(standardized_data)
-            operations.append("Added standardization metadata")
             
             standardization_time = (datetime.now() - start_time).total_seconds()
             
@@ -123,7 +199,6 @@ class DataStandardizer:
                 success=True,
                 records_processed=len(standardized_data),
                 fields_standardized=fields_standardized,
-                standardization_operations=operations,
                 standardization_time=standardization_time,
                 data=standardized_data,
                 errors=[]
@@ -137,377 +212,310 @@ class DataStandardizer:
             logger.error(f"Error during data standardization: {e}")
             return StandardizationResult(
                 success=False,
-                records_processed=len(data) if data is not None else 0,
+                records_processed=0,
                 fields_standardized=0,
-                standardization_operations=[],
                 standardization_time=(datetime.now() - start_time).total_seconds(),
                 data=None,
                 errors=[str(e)]
             )
     
-    def _standardize_text_fields(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Standardize text fields"""
-        changed_fields = []
+    def _standardize_text_field(self, data: pd.DataFrame, field: str) -> pd.DataFrame:
+        """Standardize text field formatting"""
+        if field not in data.columns:
+            return data
         
-        # Customer name standardization
-        if 'customer_name' in data.columns:
-            original = data['customer_name'].copy()
-            # Title case with proper handling of prefixes
-            data['customer_name'] = data['customer_name'].str.title()
-            # Fix common title case issues
-            data['customer_name'] = data['customer_name'].str.replace(r'\bMc([A-Z])', r'Mc\1', regex=True)
-            data['customer_name'] = data['customer_name'].str.replace(r'\bO\'([A-Z])', r"O'\1", regex=True)
-            data['customer_name'] = data['customer_name'].str.replace(r'\bDe ([A-Z])', r'de \1', regex=True)
-            data['customer_name'] = data['customer_name'].str.replace(r'\bVan ([A-Z])', r'van \1', regex=True)
+        # Convert to string and handle NaN
+        data[field] = data[field].astype(str)
+        data[field] = data[field].replace('nan', np.nan)
+        
+        # Basic text cleaning
+        data[field] = data[field].str.strip()  # Remove leading/trailing whitespace
+        data[field] = data[field].str.replace(r'\s+', ' ', regex=True)  # Multiple spaces to single
+        
+        # Field-specific standardization
+        if field == 'customer_name':
+            # Title case for names
+            data[field] = data[field].str.title()
+            # Fix common name issues
+            data[field] = data[field].str.replace(r'\bMc([a-z])', r'Mc\1', regex=True)  # McDonald -> McDonald
+            data[field] = data[field].str.replace(r'\bO\'([a-z])', r"O'\1", regex=True)  # O'connor -> O'Connor
+        
+        elif field == 'product':
+            # Proper case for products
+            data[field] = data[field].str.title()
+            # Fix brand names
+            brand_fixes = {
+                'Iphone': 'iPhone',
+                'Ipad': 'iPad',
+                'Macbook': 'MacBook',
+                'Airpods': 'AirPods',
+                'Playstation': 'PlayStation',
+                'Xbox': 'Xbox'
+            }
+            for wrong, correct in brand_fixes.items():
+                data[field] = data[field].str.replace(wrong, correct, case=False)
+        
+        elif field in ['store_location', 'notes']:
+            # Title case for locations and notes
+            data[field] = data[field].str.title()
+        
+        return data
+    
+    def _standardize_email_addresses(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Standardize email address formats"""
+        email_field = 'customer_email'
+        if email_field not in data.columns:
+            return data
+        
+        # Convert to lowercase
+        data[email_field] = data[email_field].str.lower().str.strip()
+        
+        # Remove extra spaces
+        data[email_field] = data[email_field].str.replace(r'\s+', '', regex=True)
+        
+        # Standardize domains
+        for domain, standard_domain in self.email_domains.items():
+            pattern = f'@{re.escape(domain)}$'
+            replacement = f'@{standard_domain}'
+            data[email_field] = data[email_field].str.replace(pattern, replacement, regex=True)
+        
+        # Validate and clean invalid emails
+        valid_email_mask = data[email_field].apply(validate_email)
+        data.loc[~valid_email_mask, email_field] = np.nan
+        
+        return data
+    
+    def _standardize_phone_numbers(self, data: pd.DataFrame, field: str) -> pd.DataFrame:
+        """Standardize phone number formats"""
+        if field not in data.columns:
+            return data
+        
+        # Convert to string and clean
+        data[field] = data[field].astype(str).str.strip()
+        data[field] = data[field].replace('nan', np.nan)
+        
+        # Remove non-digit characters except + and -
+        data[field] = data[field].str.replace(r'[^\d+\-]', '', regex=True)
+        
+        # Apply standardization patterns
+        for pattern, replacement in self.phone_patterns.items():
+            mask = data[field].str.match(pattern, na=False)
+            if mask.any():
+                data.loc[mask, field] = data.loc[mask, field].str.replace(pattern, replacement, regex=True)
+        
+        return data
+    
+    def _standardize_addresses(self, data: pd.DataFrame, field: str) -> pd.DataFrame:
+        """Standardize address formats"""
+        if field not in data.columns:
+            return data
+        
+        # Convert to string and clean
+        data[field] = data[field].astype(str).str.strip()
+        data[field] = data[field].replace('nan', np.nan)
+        
+        # Title case
+        data[field] = data[field].str.title()
+        
+        # Standardize abbreviations (case-insensitive)
+        for abbrev, full_form in self.address_abbreviations.items():
+            # Word boundary patterns to avoid partial matches
+            pattern = r'\b' + re.escape(abbrev) + r'\b'
+            data[field] = data[field].str.replace(pattern, full_form, case=False, regex=True)
+        
+        # Clean up extra spaces
+        data[field] = data[field].str.replace(r'\s+', ' ', regex=True)
+        
+        return data
+    
+    def _standardize_dates(self, data: pd.DataFrame, field: str) -> pd.DataFrame:
+        """Standardize date formats"""
+        if field not in data.columns:
+            return data
+        
+        # Convert to datetime if not already
+        if not pd.api.types.is_datetime64_any_dtype(data[field]):
+            data[field] = pd.to_datetime(data[field], errors='coerce')
+        
+        # Standardize to ISO format string
+        data[field] = data[field].dt.strftime('%Y-%m-%d')
+        
+        return data
+    
+    def _standardize_numeric_field(self, data: pd.DataFrame, field: str) -> pd.DataFrame:
+        """Standardize numeric field formats"""
+        if field not in data.columns:
+            return data
+        
+        # Remove currency symbols and convert to numeric
+        if data[field].dtype == 'object':
+            # Remove currency symbols
+            for symbol in self.currency_symbols.keys():
+                data[field] = data[field].astype(str).str.replace(re.escape(symbol), '', regex=True)
             
-            if not data['customer_name'].equals(original):
-                changed_fields.append('customer_name')
-        
-        # Product name standardization
-        if 'product' in data.columns:
-            original = data['product'].copy()
-            # Consistent capitalization for product names
-            data['product'] = data['product'].str.strip()
-            # Remove extra spaces
-            data['product'] = data['product'].str.replace(r'\s+', ' ', regex=True)
+            # Remove commas and other formatting
+            data[field] = data[field].str.replace(',', '')
+            data[field] = data[field].str.replace(' ', '')
             
-            if not data['product'].equals(original):
-                changed_fields.append('product')
+            # Convert to numeric
+            data[field] = pd.to_numeric(data[field], errors='coerce')
         
-        # Address standardization
-        address_fields = ['address', 'store_location', 'shipping_address', 'billing_address']
-        for field in address_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Standardize address format
-                data[field] = data[field].str.title()
-                # Standardize common abbreviations
-                address_replacements = {
-                    r'\bSt\.?\b': 'Street',
-                    r'\bAve\.?\b': 'Avenue',
-                    r'\bBlvd\.?\b': 'Boulevard',
-                    r'\bDr\.?\b': 'Drive',
-                    r'\bRd\.?\b': 'Road',
-                    r'\bLn\.?\b': 'Lane',
-                    r'\bCt\.?\b': 'Court',
-                    r'\bPl\.?\b': 'Place',
-                    r'\bApt\.?\b': 'Apartment',
-                    r'\bSte\.?\b': 'Suite'
-                }
-                
-                for pattern, replacement in address_replacements.items():
-                    data[field] = data[field].str.replace(pattern, replacement, regex=True)
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
+        # Round to appropriate decimal places
+        if field in ['price', 'discount', 'total_amount']:
+            data[field] = data[field].round(2)
+        elif field == 'quantity':
+            data[field] = data[field].round(0).astype('Int64')  # Integer with NaN support
         
-        # Notes and description fields
-        text_fields = ['notes', 'description', 'comments']
-        for field in text_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Sentence case for notes
-                data[field] = data[field].str.strip()
-                data[field] = data[field].str.replace(r'\s+', ' ', regex=True)
-                # Capitalize first letter of sentences
-                data[field] = data[field].str.replace(r'(^|[.!?]\s+)([a-z])', 
-                                                    lambda m: m.group(1) + m.group(2).upper(), 
-                                                    regex=True)
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
-        
-        return {'changed': len(changed_fields) > 0, 'fields': changed_fields}
+        return data
     
-    def _standardize_numeric_fields(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Standardize numeric fields"""
-        changed_fields = []
+    def _standardize_categorical_field(self, data: pd.DataFrame, field: str) -> pd.DataFrame:
+        """Standardize categorical field values"""
+        if field not in data.columns:
+            return data
         
-        # Price fields - standardize to 2 decimal places
-        price_fields = ['price', 'unit_price', 'total_amount', 'discount', 'tax_amount', 'shipping_cost']
-        for field in price_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Remove currency symbols if present
-                if data[field].dtype == 'object':
-                    for symbol in self.currency_symbols:
-                        data[field] = data[field].astype(str).str.replace(symbol, '', regex=False)
-                    # Remove commas
-                    data[field] = data[field].str.replace(',', '')
-                    # Convert to numeric
-                    data[field] = pd.to_numeric(data[field], errors='coerce')
-                
-                # Round to 2 decimal places
-                data[field] = data[field].round(2)
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
+        # Convert to string and clean
+        data[field] = data[field].astype(str).str.strip().str.lower()
+        data[field] = data[field].replace('nan', np.nan)
         
-        # Quantity fields - standardize to integers
-        quantity_fields = ['quantity', 'items_count', 'units_ordered']
-        for field in quantity_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Convert to integer
-                data[field] = pd.to_numeric(data[field], errors='coerce')
-                data[field] = data[field].round().astype('Int64')  # Nullable integer
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
-        
-        # Percentage fields
-        percentage_fields = ['discount_percentage', 'tax_rate', 'commission_rate']
-        for field in percentage_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Remove % symbol if present
-                if data[field].dtype == 'object':
-                    data[field] = data[field].astype(str).str.replace('%', '')
-                    data[field] = pd.to_numeric(data[field], errors='coerce')
-                
-                # Ensure percentages are in 0-100 range (not 0-1)
-                mask = (data[field] <= 1) & (data[field] >= 0)
-                data.loc[mask, field] = data.loc[mask, field] * 100
-                
-                # Round to 1 decimal place
-                data[field] = data[field].round(1)
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
-        
-        return {'changed': len(changed_fields) > 0, 'fields': changed_fields}
-    
-    def _standardize_date_fields(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Standardize date and datetime fields"""
-        changed_fields = []
-        
-        # Date fields
-        date_fields = ['order_date', 'delivery_date', 'ship_date', 'created_date']
-        for field in date_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Convert to datetime and then to standard date format
-                data[field] = pd.to_datetime(data[field], errors='coerce')
-                # Convert to date string in ISO format
-                data[field] = data[field].dt.strftime(TimeFormat.ISO_DATE)
-                
-                if not data[field].equals(original.astype(str)):
-                    changed_fields.append(field)
-        
-        # Datetime fields
-        datetime_fields = ['created_at', 'updated_at', 'processed_at', 'ingested_at', 'enriched_at', 'cleaned_at']
-        for field in datetime_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Convert to datetime and then to standard datetime format
-                if data[field].dtype == 'object':
-                    data[field] = pd.to_datetime(data[field], errors='coerce')
-                # Convert to datetime string in ISO format
-                data[field] = data[field].dt.strftime(TimeFormat.ISO_DATETIME)
-                
-                if not data[field].equals(original.astype(str)):
-                    changed_fields.append(field)
-        
-        return {'changed': len(changed_fields) > 0, 'fields': changed_fields}
-    
-    def _standardize_email_fields(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Standardize email fields"""
-        changed_fields = []
-        
-        email_fields = ['customer_email', 'contact_email', 'billing_email', 'shipping_email']
-        for field in email_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Convert to lowercase and trim
-                data[field] = data[field].astype(str).str.lower().str.strip()
-                # Replace 'nan' with actual NaN
-                data[field] = data[field].replace('nan', np.nan)
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
-        
-        return {'changed': len(changed_fields) > 0, 'fields': changed_fields}
-    
-    def _standardize_phone_fields(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Standardize phone number fields"""
-        changed_fields = []
-        
-        phone_fields = ['phone', 'customer_phone', 'contact_phone', 'mobile_phone']
-        for field in phone_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                data[field] = data[field].astype(str).apply(self._format_phone_number)
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
-        
-        return {'changed': len(changed_fields) > 0, 'fields': changed_fields}
-    
-    def _format_phone_number(self, phone: str) -> str:
-        """Format phone number to standard format"""
-        if pd.isna(phone) or phone == 'nan' or phone == '':
-            return np.nan
-        
-        # Remove all non-digit characters
-        digits = re.sub(r'\D', '', str(phone))
-        
-        # Handle different phone number lengths
-        if len(digits) == 10:
-            # US phone number without country code
-            return f"+1-{digits[:3]}-{digits[3:6]}-{digits[6:]}"
-        elif len(digits) == 11 and digits.startswith('1'):
-            # US phone number with country code
-            return f"+1-{digits[1:4]}-{digits[4:7]}-{digits[7:]}"
-        elif len(digits) >= 7:
-            # International or other format - keep as is with + prefix
-            return f"+{digits}"
-        else:
-            # Invalid phone number
-            return np.nan
-    
-    def _standardize_categorical_fields(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Standardize categorical fields"""
-        changed_fields = []
-        
-        # Source field
-        if 'source' in data.columns:
-            original = data['source'].copy()
-            # Standardize source values
+        # Field-specific standardization
+        if field == 'source':
             source_mapping = {
                 'web': 'website',
                 'online': 'website',
                 'internet': 'website',
                 'app': 'mobile_app',
                 'mobile': 'mobile_app',
-                'smartphone': 'mobile_app',
+                'phone': 'phone',
+                'call': 'phone',
+                'telephone': 'phone',
                 'retail': 'store',
                 'shop': 'store',
                 'physical': 'store',
-                'call': 'phone',
-                'telephone': 'phone',
-                'tel': 'phone',
                 'partner': 'partner',
-                'affiliate': 'partner',
-                'reseller': 'partner'
+                'affiliate': 'partner'
             }
-            
-            data['source'] = data['source'].str.lower().replace(source_mapping)
-            
-            if not data['source'].equals(original):
-                changed_fields.append('source')
+            data[field] = data[field].replace(source_mapping)
         
-        # Status fields
-        status_fields = ['order_status', 'payment_status', 'shipping_status']
-        for field in status_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Standardize status values to title case
-                data[field] = data[field].str.lower().str.replace('_', ' ').str.title()
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
+        elif field == 'product_category':
+            category_mapping = {
+                'electronic': 'electronics',
+                'tech': 'electronics',
+                'technology': 'electronics',
+                'game': 'gaming',
+                'games': 'gaming',
+                'book': 'books',
+                'reading': 'books',
+                'home': 'smart_home',
+                'smart home': 'smart_home',
+                'fitness': 'health_fitness',
+                'health': 'health_fitness',
+                'sport': 'health_fitness'
+            }
+            data[field] = data[field].replace(category_mapping)
+            # Title case for final result
+            data[field] = data[field].str.title()
         
-        # Boolean fields
-        boolean_fields = ['is_gift', 'is_express', 'is_international', 'is_business']
-        for field in boolean_fields:
-            if field in data.columns:
-                original = data[field].copy()
-                # Standardize boolean values
-                boolean_mapping = {
-                    'yes': True, 'y': True, '1': True, 'true': True, 'on': True,
-                    'no': False, 'n': False, '0': False, 'false': False, 'off': False
-                }
-                
-                data[field] = data[field].astype(str).str.lower().replace(boolean_mapping)
-                data[field] = data[field].astype(bool)
-                
-                if not data[field].equals(original):
-                    changed_fields.append(field)
+        elif field == 'customer_segment':
+            segment_mapping = {
+                'vip': 'VIP',
+                'premium': 'Premium',
+                'standard': 'Standard',
+                'regular': 'Standard',
+                'budget': 'Budget',
+                'basic': 'Budget'
+            }
+            data[field] = data[field].replace(segment_mapping)
         
-        return {'changed': len(changed_fields) > 0, 'fields': changed_fields}
+        return data
     
-    def _standardize_id_fields(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Standardize ID fields"""
-        changed_fields = []
+    def _standardize_order_ids(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Standardize order ID formats"""
+        if 'order_id' not in data.columns:
+            return data
         
-        # Order ID
-        if 'order_id' in data.columns:
-            original = data['order_id'].copy()
-            # Ensure order IDs are uppercase
-            data['order_id'] = data['order_id'].astype(str).str.upper().str.strip()
-            
-            if not data['order_id'].equals(original):
-                changed_fields.append('order_id')
+        # Convert to string and clean
+        data['order_id'] = data['order_id'].astype(str).str.strip().str.upper()
         
-        # Customer ID
-        if 'customer_id' in data.columns:
-            original = data['customer_id'].copy()
-            # Ensure customer IDs are uppercase
-            data['customer_id'] = data['customer_id'].astype(str).str.upper().str.strip()
-            
-            if not data['customer_id'].equals(original):
-                changed_fields.append('customer_id')
+        # Standardize format to XXX-YYYY-NNN
+        # Handle various formats
+        patterns = [
+            (r'^([A-Z]{3})(\d{4})(\d{3})$', r'\1-\2-\3'),  # ORDYYYYNNN -> ORD-YYYY-NNN
+            (r'^([A-Z]{3})[-_](\d{4})[-_](\d{3})$', r'\1-\2-\3'),  # ORD_YYYY_NNN -> ORD-YYYY-NNN
+            (r'^([A-Z]{3})\s+(\d{4})\s+(\d{3})$', r'\1-\2-\3'),  # ORD YYYY NNN -> ORD-YYYY-NNN
+        ]
         
-        # Product ID
-        if 'product_id' in data.columns:
-            original = data['product_id'].copy()
-            # Ensure product IDs are uppercase
-            data['product_id'] = data['product_id'].astype(str).str.upper().str.strip()
-            
-            if not data['product_id'].equals(original):
-                changed_fields.append('product_id')
+        for pattern, replacement in patterns:
+            mask = data['order_id'].str.match(pattern, na=False)
+            if mask.any():
+                data.loc[mask, 'order_id'] = data.loc[mask, 'order_id'].str.replace(pattern, replacement, regex=True)
         
-        return {'changed': len(changed_fields) > 0, 'fields': changed_fields}
+        return data
     
     def _add_standardization_metadata(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Add metadata about standardization"""
-        data['standardized_at'] = datetime.now().strftime(TimeFormat.ISO_DATETIME)
+        """Add metadata about the standardization process"""
+        data['standardized_at'] = datetime.now().isoformat()
         data['standardization_version'] = '1.0'
         
         return data
     
     def validate_standardization(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """Validate that data meets standardization requirements"""
+        """Validate standardization results"""
         validation_results = {
-            'is_valid': True,
+            'total_records': len(data),
+            'validation_checks': {},
             'issues': [],
-            'field_validations': {}
+            'overall_score': 0
         }
         
-        # Validate date formats
-        date_fields = ['order_date', 'delivery_date', 'ship_date']
-        for field in date_fields:
-            if field in data.columns:
-                try:
-                    pd.to_datetime(data[field], format=TimeFormat.ISO_DATE, errors='raise')
-                    validation_results['field_validations'][field] = 'Valid'
-                except:
-                    validation_results['is_valid'] = False
-                    validation_results['issues'].append(f"Invalid date format in {field}")
-                    validation_results['field_validations'][field] = 'Invalid'
+        checks_passed = 0
+        total_checks = 0
         
-        # Validate email formats
-        email_fields = ['customer_email', 'contact_email']
-        for field in email_fields:
-            if field in data.columns:
-                valid_emails = data[field].dropna().apply(validate_email).all()
-                if valid_emails:
-                    validation_results['field_validations'][field] = 'Valid'
-                else:
-                    validation_results['is_valid'] = False
-                    validation_results['issues'].append(f"Invalid email format in {field}")
-                    validation_results['field_validations'][field] = 'Invalid'
+        # Check order ID format
+        if 'order_id' in data.columns:
+            total_checks += 1
+            valid_order_ids = data['order_id'].str.match(r'^[A-Z]{3}-\d{4}-\d{3}$', na=False).sum()
+            validation_results['validation_checks']['order_id_format'] = {
+                'valid': valid_order_ids,
+                'total': len(data),
+                'percentage': safe_divide(valid_order_ids, len(data), 0) * 100
+            }
+            if valid_order_ids / len(data) > 0.9:  # 90% threshold
+                checks_passed += 1
+            else:
+                validation_results['issues'].append(f"Order ID format issues: {len(data) - valid_order_ids} records")
         
-        # Validate numeric formats
-        numeric_fields = ['price', 'total_amount', 'discount']
+        # Check email format
+        if 'customer_email' in data.columns:
+            total_checks += 1
+            valid_emails = data['customer_email'].apply(lambda x: validate_email(x) if pd.notna(x) else True).sum()
+            validation_results['validation_checks']['email_format'] = {
+                'valid': valid_emails,
+                'total': data['customer_email'].notna().sum(),
+                'percentage': safe_divide(valid_emails, data['customer_email'].notna().sum(), 0) * 100
+            }
+            if valid_emails / data['customer_email'].notna().sum() > 0.95:  # 95% threshold
+                checks_passed += 1
+            else:
+                validation_results['issues'].append(f"Email format issues: {data['customer_email'].notna().sum() - valid_emails} records")
+        
+        # Check numeric fields
+        numeric_fields = ['price', 'quantity', 'total_amount']
         for field in numeric_fields:
             if field in data.columns:
-                if pd.api.types.is_numeric_dtype(data[field]):
-                    validation_results['field_validations'][field] = 'Valid'
+                total_checks += 1
+                valid_numeric = pd.to_numeric(data[field], errors='coerce').notna().sum()
+                validation_results['validation_checks'][f'{field}_numeric'] = {
+                    'valid': valid_numeric,
+                    'total': len(data),
+                    'percentage': safe_divide(valid_numeric, len(data), 0) * 100
+                }
+                if valid_numeric / len(data) > 0.95:  # 95% threshold
+                    checks_passed += 1
                 else:
-                    validation_results['is_valid'] = False
-                    validation_results['issues'].append(f"Non-numeric values in {field}")
-                    validation_results['field_validations'][field] = 'Invalid'
+                    validation_results['issues'].append(f"{field} numeric format issues: {len(data) - valid_numeric} records")
+        
+        # Calculate overall score
+        validation_results['overall_score'] = safe_divide(checks_passed, total_checks, 0) * 100
         
         return validation_results
     
@@ -526,35 +534,23 @@ class DataStandardizer:
         report.append(f"- **Status**: {'✅ SUCCESS' if result.success else '❌ FAILED'}")
         report.append("")
         
-        # Operations performed
-        if result.standardization_operations:
-            report.append("## Standardization Operations")
-            for i, operation in enumerate(result.standardization_operations, 1):
-                report.append(f"{i}. {operation}")
-            report.append("")
-        
-        # Standard formats applied
-        report.append("## Standard Formats Applied")
-        for format_type, format_example in self.standard_formats.items():
-            report.append(f"- **{format_type.title()}**: {format_example}")
-        report.append("")
-        
         # Validation results
         if result.data is not None:
             validation = self.validate_standardization(result.data)
             report.append("## Validation Results")
-            report.append(f"- **Overall Status**: {'✅ VALID' if validation['is_valid'] else '❌ INVALID'}")
+            report.append(f"- **Overall Score**: {validation['overall_score']:.1f}%")
+            report.append(f"- **Total Records**: {validation['total_records']:,}")
             
-            if validation['field_validations']:
-                report.append("- **Field Validations**:")
-                for field, status in validation['field_validations'].items():
-                    status_icon = '✅' if status == 'Valid' else '❌'
-                    report.append(f"  - {field}: {status_icon} {status}")
+            if validation['validation_checks']:
+                report.append("\n### Field Validation")
+                for check_name, check_result in validation['validation_checks'].items():
+                    report.append(f"- **{check_name.replace('_', ' ').title()}**: {check_result['valid']}/{check_result['total']} ({check_result['percentage']:.1f}%)")
             
             if validation['issues']:
-                report.append("- **Issues Found**:")
-                for issue in validation['issues']:
-                    report.append(f"  - {issue}")
+                report.append("\n### Issues Found")
+                for i, issue in enumerate(validation['issues'], 1):
+                    report.append(f"{i}. {issue}")
+            
             report.append("")
         
         # Errors
@@ -573,28 +569,26 @@ if __name__ == "__main__":
     # Create test data with various formatting issues
     test_data = pd.DataFrame([
         {
-            'order_id': 'ord-2024-001',
+            'order_id': 'ord2024001',
             'customer_name': 'john doe',
-            'customer_email': 'JOHN@EXAMPLE.COM',
-            'phone': '555-123-4567',
+            'customer_email': 'JOHN@GMAIL.COM',
+            'product': 'iphone 15',
             'price': '$999.99',
-            'discount_percentage': '10%',
+            'quantity': '1.0',
             'order_date': '2024-01-15',
             'source': 'web',
-            'address': '123 main st.',
-            'created_at': '2024-01-15 10:30:00'
+            'store_location': '123 main st, ny'
         },
         {
-            'order_id': 'ORD-2024-002',
+            'order_id': 'ORD_2024_002',
             'customer_name': 'jane o\'connor',
-            'customer_email': 'jane@COMPANY.COM',
-            'phone': '(555) 987-6543',
+            'customer_email': 'jane@hotmail.com',
+            'product': 'macbook pro',
             'price': '1,999.99',
-            'discount_percentage': '0.05',  # As decimal
+            'quantity': '1',
             'order_date': '01/16/2024',
-            'source': 'mobile',
-            'address': '456 oak ave apt 2b',
-            'created_at': '2024-01-16T14:45:30'
+            'source': 'retail',
+            'store_location': '456 oak ave, ca'
         }
     ])
     
@@ -610,15 +604,14 @@ if __name__ == "__main__":
     
     if result.data is not None:
         print(f"\nStandardized Data Sample:")
-        display_fields = ['customer_name', 'customer_email', 'phone', 'price', 'order_date', 'source']
-        available_fields = [field for field in display_fields if field in result.data.columns]
-        if available_fields:
-            print(result.data[available_fields].head())
+        sample_cols = ['order_id', 'customer_name', 'customer_email', 'product', 'price', 'source']
+        available_cols = [col for col in sample_cols if col in result.data.columns]
+        print(result.data[available_cols].head())
     
     # Validate standardization
     if result.data is not None:
         validation = standardizer.validate_standardization(result.data)
-        print(f"\nValidation Status: {'✅ VALID' if validation['is_valid'] else '❌ INVALID'}")
+        print(f"\nValidation Score: {validation['overall_score']:.1f}%")
         if validation['issues']:
             print("Issues found:")
             for issue in validation['issues']:
