@@ -1,0 +1,567 @@
+# Database Configuration
+# Configuration for all database connections and data sources
+
+# Main Database (SQLite for local development)
+main_database:
+  name: "main_orders_db"
+  type: "sqlite"
+  connection:
+    database: "data/orders.db"
+    timeout: 30
+    check_same_thread: false
+    
+  # Database schema configuration
+  schema:
+    # Orders table
+    orders:
+      table_name: "orders"
+      primary_key: "id"
+      columns:
+        id: "INTEGER PRIMARY KEY AUTOINCREMENT"
+        order_id: "VARCHAR(50) UNIQUE NOT NULL"
+        customer_name: "VARCHAR(100) NOT NULL"
+        customer_email: "VARCHAR(100)"
+        product: "VARCHAR(200) NOT NULL"
+        product_category: "VARCHAR(50)"
+        quantity: "INTEGER NOT NULL"
+        price: "DECIMAL(10,2) NOT NULL"
+        discount: "DECIMAL(10,2) DEFAULT 0"
+        total_amount: "DECIMAL(10,2)"
+        order_date: "DATE NOT NULL"
+        store_location: "VARCHAR(100)"
+        source: "VARCHAR(50)"
+        source_file: "VARCHAR(200)"
+        source_type: "VARCHAR(50)"
+        ingested_at: "TIMESTAMP"
+        processed_at: "TIMESTAMP"
+        created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        
+      # Indexes for performance
+      indexes:
+        - name: "idx_orders_order_id"
+          columns: ["order_id"]
+          unique: true
+        - name: "idx_orders_customer_name"
+          columns: ["customer_name"]
+        - name: "idx_orders_order_date"
+          columns: ["order_date"]
+        - name: "idx_orders_source"
+          columns: ["source"]
+        - name: "idx_orders_created_at"
+          columns: ["created_at"]
+          
+    # Customers table
+    customers:
+      table_name: "customers"
+      primary_key: "id"
+      columns:
+        id: "INTEGER PRIMARY KEY AUTOINCREMENT"
+        customer_id: "VARCHAR(50) UNIQUE"
+        customer_name: "VARCHAR(100) NOT NULL"
+        email: "VARCHAR(100)"
+        phone: "VARCHAR(20)"
+        address: "TEXT"
+        city: "VARCHAR(50)"
+        state: "VARCHAR(50)"
+        country: "VARCHAR(50)"
+        postal_code: "VARCHAR(20)"
+        registration_date: "DATE"
+        last_order_date: "DATE"
+        total_orders: "INTEGER DEFAULT 0"
+        total_spent: "DECIMAL(12,2) DEFAULT 0"
+        customer_segment: "VARCHAR(20)"
+        created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        
+      indexes:
+        - name: "idx_customers_customer_id"
+          columns: ["customer_id"]
+          unique: true
+        - name: "idx_customers_email"
+          columns: ["email"]
+        - name: "idx_customers_segment"
+          columns: ["customer_segment"]
+          
+    # Products table
+    products:
+      table_name: "products"
+      primary_key: "id"
+      columns:
+        id: "INTEGER PRIMARY KEY AUTOINCREMENT"
+        product_id: "VARCHAR(50) UNIQUE"
+        product_name: "VARCHAR(200) NOT NULL"
+        category: "VARCHAR(50)"
+        brand: "VARCHAR(50)"
+        price: "DECIMAL(10,2)"
+        cost: "DECIMAL(10,2)"
+        in_stock: "BOOLEAN DEFAULT 1"
+        stock_quantity: "INTEGER DEFAULT 0"
+        description: "TEXT"
+        created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        
+      indexes:
+        - name: "idx_products_product_id"
+          columns: ["product_id"]
+          unique: true
+        - name: "idx_products_category"
+          columns: ["category"]
+        - name: "idx_products_brand"
+          columns: ["brand"]
+          
+    # Pipeline runs table
+    pipeline_runs:
+      table_name: "pipeline_runs"
+      primary_key: "id"
+      columns:
+        id: "INTEGER PRIMARY KEY AUTOINCREMENT"
+        run_id: "VARCHAR(100) UNIQUE NOT NULL"
+        pipeline_name: "VARCHAR(100) NOT NULL"
+        start_time: "TIMESTAMP NOT NULL"
+        end_time: "TIMESTAMP"
+        status: "VARCHAR(20) NOT NULL"
+        records_processed: "INTEGER DEFAULT 0"
+        records_failed: "INTEGER DEFAULT 0"
+        error_message: "TEXT"
+        created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        
+      indexes:
+        - name: "idx_pipeline_runs_run_id"
+          columns: ["run_id"]
+          unique: true
+        - name: "idx_pipeline_runs_status"
+          columns: ["status"]
+        - name: "idx_pipeline_runs_start_time"
+          columns: ["start_time"]
+          
+    # Data quality metrics table
+    data_quality_metrics:
+      table_name: "data_quality_metrics"
+      primary_key: "id"
+      columns:
+        id: "INTEGER PRIMARY KEY AUTOINCREMENT"
+        run_id: "VARCHAR(100)"
+        metric_name: "VARCHAR(100) NOT NULL"
+        metric_value: "DECIMAL(10,4)"
+        metric_type: "VARCHAR(50)"
+        source_table: "VARCHAR(100)"
+        measured_at: "TIMESTAMP NOT NULL"
+        created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        
+      indexes:
+        - name: "idx_quality_metrics_run_id"
+          columns: ["run_id"]
+        - name: "idx_quality_metrics_name"
+          columns: ["metric_name"]
+        - name: "idx_quality_metrics_measured_at"
+          columns: ["measured_at"]
+          
+    # Processing logs table
+    processing_logs:
+      table_name: "processing_logs"
+      primary_key: "id"
+      columns:
+        id: "INTEGER PRIMARY KEY AUTOINCREMENT"
+        run_id: "VARCHAR(100)"
+        stage: "VARCHAR(50)"
+        level: "VARCHAR(20)"
+        message: "TEXT"
+        details: "TEXT"
+        timestamp: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        
+      indexes:
+        - name: "idx_processing_logs_run_id"
+          columns: ["run_id"]
+        - name: "idx_processing_logs_stage"
+          columns: ["stage"]
+        - name: "idx_processing_logs_level"
+          columns: ["level"]
+        - name: "idx_processing_logs_timestamp"
+          columns: ["timestamp"]
+
+# External Database Connections
+external_databases:
+  # MySQL Production Database
+  mysql_production:
+    name: "mysql_prod"
+    type: "mysql"
+    connection:
+      host: "${MYSQL_HOST:-localhost}"
+      port: "${MYSQL_PORT:-3306}"
+      database: "${MYSQL_DATABASE:-orders}"
+      username: "${MYSQL_USERNAME:-root}"
+      password: "${MYSQL_PASSWORD:-password}"
+      charset: "utf8mb4"
+      ssl_disabled: false
+      connect_timeout: 30
+      read_timeout: 60
+      write_timeout: 60
+      
+    # Connection pool settings
+    pool:
+      pool_size: 10
+      max_overflow: 20
+      pool_timeout: 30
+      pool_recycle: 3600
+      
+    # MySQL specific settings
+    mysql_settings:
+      sql_mode: "STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO"
+      time_zone: "+00:00"
+      autocommit: true
+      
+  # PostgreSQL Analytics Database
+  postgresql_analytics:
+    name: "postgres_analytics"
+    type: "postgresql"
+    connection:
+      host: "${POSTGRES_HOST:-localhost}"
+      port: "${POSTGRES_PORT:-5432}"
+      database: "${POSTGRES_DATABASE:-analytics}"
+      username: "${POSTGRES_USERNAME:-postgres}"
+      password: "${POSTGRES_PASSWORD:-password}"
+      sslmode: "prefer"
+      connect_timeout: 30
+      
+    # Connection pool settings
+    pool:
+      pool_size: 5
+      max_overflow: 10
+      pool_timeout: 30
+      pool_recycle: 3600
+      
+    # PostgreSQL specific settings
+    postgresql_settings:
+      search_path: "public,analytics"
+      timezone: "UTC"
+      
+  # Partner SQLite Database
+  partner_sqlite:
+    name: "partner_db"
+    type: "sqlite"
+    connection:
+      database: "data/partner_orders.db"
+      timeout: 30
+      check_same_thread: false
+      
+    # SQLite specific settings
+    sqlite_settings:
+      journal_mode: "WAL"
+      synchronous: "NORMAL"
+      cache_size: 10000
+      temp_store: "MEMORY"
+
+# Data Sources Configuration
+data_sources:
+  # Main orders from local database
+  main_orders:
+    source_id: "main_orders"
+    name: "Main Orders Database"
+    connection: "main_orders_db"
+    enabled: true
+    
+    # Query configuration
+    query: |
+      SELECT 
+        order_id,
+        customer_name,
+        customer_email,
+        product,
+        product_category,
+        quantity,
+        price,
+        discount,
+        total_amount,
+        order_date,
+        store_location,
+        source,
+        created_at,
+        updated_at
+      FROM orders
+      WHERE created_at > {last_value}
+      ORDER BY created_at
+      
+    # Incremental loading
+    incremental:
+      mode: "timestamp"
+      column: "created_at"
+      initial_value: "2024-01-01 00:00:00"
+      
+    # Extraction settings
+    extraction:
+      batch_size: 1000
+      timeout_seconds: 300
+      schedule_interval_seconds: 3600  # 1 hour
+      
+  # Partner orders from external database
+  partner_orders:
+    source_id: "partner_orders"
+    name: "Partner Orders Database"
+    connection: "partner_sqlite"
+    enabled: true
+    
+    query: |
+      SELECT 
+        order_reference as order_id,
+        customer_email,
+        customer_name,
+        product_sku as product,
+        'Electronics' as product_category,
+        quantity,
+        unit_price as price,
+        0 as discount,
+        (quantity * unit_price) as total_amount,
+        DATE(created_at) as order_date,
+        'Partner Store' as store_location,
+        'partner' as source,
+        created_at,
+        created_at as updated_at
+      FROM partner_orders
+      WHERE created_at > {last_value}
+      ORDER BY created_at
+      
+    incremental:
+      mode: "timestamp"
+      column: "created_at"
+      initial_value: "2024-01-01 00:00:00"
+      
+    extraction:
+      batch_size: 500
+      timeout_seconds: 180
+      schedule_interval_seconds: 7200  # 2 hours
+      
+  # Customer data from MySQL
+  mysql_customers:
+    source_id: "mysql_customers"
+    name: "MySQL Customer Database"
+    connection: "mysql_production"
+    enabled: false  # Disabled by default
+    
+    query: |
+      SELECT 
+        customer_id,
+        CONCAT(first_name, ' ', last_name) as customer_name,
+        email,
+        phone,
+        CONCAT(address_line1, ', ', city, ', ', state) as address,
+        city,
+        state,
+        country,
+        postal_code,
+        registration_date,
+        last_order_date,
+        total_orders,
+        total_spent,
+        customer_segment,
+        created_at,
+        updated_at
+      FROM customers
+      WHERE updated_at > {last_value}
+      ORDER BY updated_at
+      
+    incremental:
+      mode: "timestamp"
+      column: "updated_at"
+      initial_value: "2024-01-01 00:00:00"
+      
+    extraction:
+      batch_size: 2000
+      timeout_seconds: 600
+      schedule_interval_seconds: 14400  # 4 hours
+      
+  # Analytics summary from PostgreSQL
+  postgres_analytics:
+    source_id: "postgres_analytics"
+    name: "PostgreSQL Analytics Summary"
+    connection: "postgresql_analytics"
+    enabled: false  # Disabled by default
+    
+    query: |
+      SELECT 
+        DATE(order_date) as order_date,
+        COUNT(*) as order_count,
+        SUM(total_amount) as total_revenue,
+        AVG(total_amount) as avg_order_value,
+        COUNT(DISTINCT customer_id) as unique_customers,
+        'analytics' as source,
+        MAX(updated_at) as updated_at
+      FROM order_summary
+      WHERE DATE(order_date) > {last_value}
+      GROUP BY DATE(order_date)
+      ORDER BY order_date
+      
+    incremental:
+      mode: "timestamp"
+      column: "order_date"
+      initial_value: "2024-01-01"
+      
+    extraction:
+      batch_size: 100
+      timeout_seconds: 120
+      schedule_interval_seconds: 86400  # 24 hours
+
+# Database Maintenance Configuration
+maintenance:
+  # Backup settings
+  backup:
+    enabled: true
+    schedule: "0 3 * * *"  # Daily at 3 AM
+    retention_days: 30
+    compression: true
+    backup_directory: "data/backups"
+    
+    # Backup strategies per database type
+    strategies:
+      sqlite:
+        method: "file_copy"
+        verify_integrity: true
+      mysql:
+        method: "mysqldump"
+        options: "--single-transaction --routines --triggers"
+      postgresql:
+        method: "pg_dump"
+        options: "--verbose --no-owner --no-acl"
+        
+  # Optimization settings
+  optimization:
+    enabled: true
+    schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM
+    
+    tasks:
+      - name: "analyze_tables"
+        enabled: true
+        description: "Update table statistics"
+      - name: "rebuild_indexes"
+        enabled: true
+        description: "Rebuild fragmented indexes"
+      - name: "vacuum_tables"
+        enabled: true
+        description: "Reclaim storage space"
+      - name: "update_statistics"
+        enabled: true
+        description: "Update query optimizer statistics"
+        
+  # Cleanup settings
+  cleanup:
+    enabled: true
+    schedule: "0 2 * * 0"  # Weekly on Sunday at 2 AM
+    
+    # Data retention policies
+    retention_policies:
+      processing_logs:
+        retention_days: 30
+        archive_before_delete: true
+      data_quality_metrics:
+        retention_days: 90
+        archive_before_delete: true
+      pipeline_runs:
+        retention_days: 365
+        archive_before_delete: false
+        
+# Database Monitoring
+monitoring:
+  enabled: true
+  
+  # Performance monitoring
+  performance:
+    enabled: true
+    check_interval_seconds: 300  # 5 minutes
+    
+    metrics:
+      - name: "connection_count"
+        threshold: 80  # Percentage of max connections
+      - name: "query_response_time"
+        threshold_ms: 5000
+      - name: "lock_wait_time"
+        threshold_ms: 1000
+      - name: "disk_usage"
+        threshold_percent: 85
+      - name: "memory_usage"
+        threshold_percent: 90
+        
+  # Health checks
+  health_checks:
+    enabled: true
+    check_interval_seconds: 60  # 1 minute
+    
+    checks:
+      - name: "connection_test"
+        timeout_seconds: 10
+      - name: "basic_query"
+        query: "SELECT 1"
+        timeout_seconds: 5
+      - name: "table_accessibility"
+        tables: ["orders", "customers", "products"]
+        timeout_seconds: 15
+        
+  # Alerting thresholds
+  alerts:
+    connection_failure:
+      enabled: true
+      severity: "critical"
+    slow_queries:
+      enabled: true
+      threshold_ms: 10000
+      severity: "warning"
+    high_disk_usage:
+      enabled: true
+      threshold_percent: 90
+      severity: "warning"
+    backup_failure:
+      enabled: true
+      severity: "critical"
+
+# Environment-specific Database Settings
+environments:
+  development:
+    main_database:
+      connection:
+        database: "data/dev_orders.db"
+    external_databases:
+      mysql_production:
+        connection:
+          host: "localhost"
+          database: "dev_orders"
+      postgresql_analytics:
+        connection:
+          host: "localhost"
+          database: "dev_analytics"
+    maintenance:
+      backup:
+        enabled: false
+      optimization:
+        enabled: false
+        
+  staging:
+    main_database:
+      connection:
+        database: "data/staging_orders.db"
+    maintenance:
+      backup:
+        retention_days: 7
+      cleanup:
+        retention_policies:
+          processing_logs:
+            retention_days: 7
+          data_quality_metrics:
+            retention_days: 30
+            
+  production:
+    maintenance:
+      backup:
+        enabled: true
+        retention_days: 90
+        compression: true
+      optimization:
+        enabled: true
+      cleanup:
+        enabled: true
+    monitoring:
+      performance:
+        check_interval_seconds: 60  # More frequent in production
+      alerts:
+        connection_failure:
+          severity: "critical"
+        slow_queries:
+          threshold_ms: 5000  # Stricter in production
