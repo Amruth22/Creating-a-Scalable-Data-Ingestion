@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+data_ingestion_env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data files
+data/input/csv/*.csv
+data/input/json/*.json
+data/input/processed/
+data/output/
+data/archive/
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+
+# Configuration (keep examples)
+config/*.yaml
+!config/*_example.yaml
+
+# Reports
+reports/
+*.html
+*.pdf
+
+# Backup files
+*.bak
+*.backup
+
+# Sample data (keep structure, ignore content)
+data/samples/*.csv
+data/samples/*.json
+
+# Processing artifacts
+*.pkl
+*.joblib
