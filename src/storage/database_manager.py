@@ -6,6 +6,7 @@ Handles SQLite database operations, CRUD operations, and data persistence
 import os
 import sqlite3
 import pandas as pd
+import numpy as np
 import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Union, Tuple
@@ -101,7 +102,7 @@ class DatabaseManager:
     
     def save_orders(self, data: pd.DataFrame, batch_size: int = 1000) -> DatabaseResult:
         """
-        Save order data to database
+        Save order data to database with all enriched fields
         
         Args:
             data (pd.DataFrame): Order data to save
@@ -116,24 +117,43 @@ class DatabaseManager:
             logger.info(f"Saving {len(data)} orders to database")
             
             with self.get_connection() as conn:
+                # Clean and prepare data for insertion
+                cleaned_data = self._clean_data_for_database(data)
+                
+                # Get all columns that exist in both data and database
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(orders)")
+                db_columns = [row[1] for row in cursor.fetchall()]
+                
+                # Find common columns (excluding id which is auto-increment)
+                common_columns = [col for col in cleaned_data.columns if col in db_columns and col != 'id']
+                
+                if not common_columns:
+                    raise Exception("No matching columns found between data and database schema")
+                
+                logger.info(f"Inserting {len(common_columns)} columns: {common_columns[:10]}{'...' if len(common_columns) > 10 else ''}")
+                
+                # Build dynamic INSERT query
+                placeholders = ', '.join(['?' for _ in common_columns])
+                columns_str = ', '.join(common_columns)
+                
+                insert_query = f'''
+                    INSERT OR REPLACE INTO orders ({columns_str})
+                    VALUES ({placeholders})
+                '''
+                
                 # Prepare data for insertion
-                orders_data = self._prepare_orders_data(data)
+                orders_data = []
+                for _, row in cleaned_data.iterrows():
+                    row_data = tuple(row[col] for col in common_columns)
+                    orders_data.append(row_data)
                 
                 # Insert in batches
                 total_inserted = 0
                 for i in range(0, len(orders_data), batch_size):
                     batch = orders_data[i:i + batch_size]
                     
-                    # Insert batch
-                    cursor = conn.cursor()
-                    cursor.executemany('''
-                        INSERT OR REPLACE INTO orders (
-                            order_id, customer_name, product, quantity, price, order_date,
-                            source, store_location, customer_email, product_category,
-                            discount, total_amount, processed_at, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', batch)
-                    
+                    cursor.executemany(insert_query, batch)
                     total_inserted += cursor.rowcount
                     conn.commit()
                     
@@ -162,32 +182,70 @@ class DatabaseManager:
                 error_message=str(e)
             )
     
-    def _prepare_orders_data(self, data: pd.DataFrame) -> List[Tuple]:
-        """Prepare order data for database insertion"""
-        prepared_data = []
+    def _clean_data_for_database(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Clean and convert data types for database insertion
+        
+        Args:
+            data (pd.DataFrame): Raw data from transformation
+            
+        Returns:
+            pd.DataFrame: Cleaned data ready for database
+        """
+        cleaned_data = data.copy()
         current_time = datetime.now().isoformat()
         
-        for _, row in data.iterrows():
-            order_tuple = (
-                row.get('order_id', ''),
-                row.get('customer_name', ''),
-                row.get('product', ''),
-                row.get('quantity', 1),
-                row.get('price', 0.0),
-                row.get('order_date', current_time),
-                row.get('source', 'unknown'),
-                row.get('store_location', None),
-                row.get('customer_email', None),
-                row.get('product_category', 'Electronics'),
-                row.get('discount', 0.0),
-                row.get('total_amount', 0.0),
-                row.get('processed_at', current_time),
-                current_time,  # created_at
-                current_time   # updated_at
-            )
-            prepared_data.append(order_tuple)
+        # Convert all columns to database-compatible types
+        for column in cleaned_data.columns:
+            try:
+                # Handle different data types
+                if cleaned_data[column].dtype == 'object':
+                    # Convert object columns to strings, handle NaN
+                    cleaned_data[column] = cleaned_data[column].astype(str)
+                    cleaned_data[column] = cleaned_data[column].replace('nan', None)
+                    cleaned_data[column] = cleaned_data[column].replace('None', None)
+                    
+                elif cleaned_data[column].dtype in ['int64', 'int32', 'int16', 'int8']:
+                    # Convert integers, handle NaN
+                    cleaned_data[column] = cleaned_data[column].fillna(0).astype(int)
+                    
+                elif cleaned_data[column].dtype in ['float64', 'float32', 'float16']:
+                    # Convert floats, handle NaN and infinity
+                    cleaned_data[column] = cleaned_data[column].replace([float('inf'), float('-inf')], None)
+                    cleaned_data[column] = cleaned_data[column].fillna(0.0).astype(float)
+                    
+                elif cleaned_data[column].dtype == 'bool':
+                    # Convert booleans to integers (SQLite compatible)
+                    cleaned_data[column] = cleaned_data[column].astype(int)
+                    
+                elif 'datetime' in str(cleaned_data[column].dtype):
+                    # Convert datetime to ISO string
+                    cleaned_data[column] = cleaned_data[column].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    
+                else:
+                    # For any other type, convert to string
+                    cleaned_data[column] = cleaned_data[column].astype(str)
+                    cleaned_data[column] = cleaned_data[column].replace('nan', None)
+                    
+            except Exception as e:
+                logger.warning(f"Error converting column {column}: {e}. Converting to string.")
+                # Fallback: convert to string
+                try:
+                    cleaned_data[column] = cleaned_data[column].astype(str)
+                    cleaned_data[column] = cleaned_data[column].replace('nan', None)
+                except:
+                    # Ultimate fallback: fill with None
+                    cleaned_data[column] = None
         
-        return prepared_data
+        # Ensure required timestamp fields
+        if 'created_at' not in cleaned_data.columns:
+            cleaned_data['created_at'] = current_time
+        if 'updated_at' not in cleaned_data.columns:
+            cleaned_data['updated_at'] = current_time
+        if 'processed_at' not in cleaned_data.columns:
+            cleaned_data['processed_at'] = current_time
+            
+        return cleaned_data
     
     def get_orders(self, filters: Optional[Dict[str, Any]] = None, 
                    limit: Optional[int] = None, 
