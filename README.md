@@ -373,16 +373,9 @@ python scripts/run_pipeline.py
 ```
 **What this does**: Runs the complete data processing pipeline
 
-### 🎯 **Complete Setup (All Steps)**
+#### **Step 4: visualize_pipeline_results** 🚀
 ```bash
-# Step 1: Setup database and tables
-python scripts/setup_database.py
-
-# Step 2: Generate sample data files
-python scripts/generate_sample_data.py
-
-# Step 3: Run the complete pipeline
-python scripts/run_pipeline.py
+python visualize_pipeline_results.py
 ```
 
 ### 🤔 **Why Generate Sample Data?**
