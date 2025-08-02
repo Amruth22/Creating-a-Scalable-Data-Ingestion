@@ -46,6 +46,9 @@ class PipelineConfig:
     enable_parallel_processing: bool = True
     enable_monitoring: bool = True
     log_level: str = "INFO"
+    timeout_seconds: int = 3600
+    retry_attempts: int = 3
+    retry_delay_seconds: int = 300
 
 @dataclass
 class AlertConfig:
@@ -70,12 +73,12 @@ class ConfigManager:
         self.config_file = config_file or "config/pipeline_config.yaml"
         self.config = self._load_config()
         
-        # Initialize configuration objects
-        self.database = DatabaseConfig(**self.config.get('database', {}))
-        self.api = APIConfig(**self.config.get('api', {}))
-        self.file = FileConfig(**self.config.get('file', {}))
-        self.pipeline = PipelineConfig(**self.config.get('pipeline', {}))
-        self.alerts = AlertConfig(**self.config.get('alerts', {}))
+        # Initialize configuration objects with safe extraction
+        self.database = self._create_database_config()
+        self.api = self._create_api_config()
+        self.file = self._create_file_config()
+        self.pipeline = self._create_pipeline_config()
+        self.alerts = self._create_alert_config()
         
         # Override with environment variables
         self._load_environment_variables()
@@ -97,6 +100,78 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
             return self._get_default_config()
+    
+    def _create_database_config(self) -> DatabaseConfig:
+        """Create database configuration from loaded config"""
+        db_config = self.config.get('database', {})
+        
+        # Handle nested structure if it exists
+        if 'database' in self.config and isinstance(self.config['database'], dict):
+            db_config = self.config['database']
+        
+        return DatabaseConfig(
+            path=db_config.get('path', 'data/orders.db'),
+            timeout=db_config.get('timeout', 30),
+            check_same_thread=db_config.get('check_same_thread', False)
+        )
+    
+    def _create_api_config(self) -> APIConfig:
+        """Create API configuration from loaded config"""
+        api_config = self.config.get('api', {})
+        
+        return APIConfig(
+            base_url=api_config.get('base_url', 'https://jsonplaceholder.typicode.com'),
+            timeout=api_config.get('timeout', 30),
+            retry_attempts=api_config.get('retry_attempts', 3),
+            retry_delay=api_config.get('retry_delay', 5)
+        )
+    
+    def _create_file_config(self) -> FileConfig:
+        """Create file configuration from loaded config"""
+        file_config = self.config.get('file', {})
+        
+        return FileConfig(
+            input_dir=file_config.get('input_dir', 'data/input'),
+            output_dir=file_config.get('output_dir', 'data/output'),
+            processed_dir=file_config.get('processed_dir', 'data/input/processed'),
+            archive_dir=file_config.get('archive_dir', 'data/archive'),
+            max_file_size_mb=file_config.get('max_file_size_mb', 100)
+        )
+    
+    def _create_pipeline_config(self) -> PipelineConfig:
+        """Create pipeline configuration from loaded config"""
+        # Handle nested pipeline configuration
+        pipeline_config = self.config.get('pipeline', {})
+        
+        # If there's an execution section, merge it
+        if 'execution' in pipeline_config:
+            execution_config = pipeline_config['execution']
+            pipeline_config.update(execution_config)
+        
+        # Extract values with defaults
+        return PipelineConfig(
+            batch_size=pipeline_config.get('batch_size', 1000),
+            max_workers=pipeline_config.get('max_workers', 4),
+            enable_parallel_processing=pipeline_config.get('enable_parallel_processing', True),
+            enable_monitoring=pipeline_config.get('enable_monitoring', True),
+            log_level=pipeline_config.get('log_level', 'INFO'),
+            timeout_seconds=pipeline_config.get('timeout_seconds', 3600),
+            retry_attempts=pipeline_config.get('retry_attempts', 3),
+            retry_delay_seconds=pipeline_config.get('retry_delay_seconds', 300)
+        )
+    
+    def _create_alert_config(self) -> AlertConfig:
+        """Create alert configuration from loaded config"""
+        alert_config = self.config.get('alerts', {})
+        
+        return AlertConfig(
+            enable_email_alerts=alert_config.get('enable_email_alerts', False),
+            smtp_server=alert_config.get('smtp_server', 'smtp.gmail.com'),
+            smtp_port=alert_config.get('smtp_port', 587),
+            email_from=alert_config.get('email_from', ''),
+            email_to=alert_config.get('email_to', ''),
+            email_password=alert_config.get('email_password', '')
+        )
     
     def _get_default_config(self) -> Dict[str, Any]:
         """Get default configuration"""
@@ -124,7 +199,10 @@ class ConfigManager:
                 'max_workers': 4,
                 'enable_parallel_processing': True,
                 'enable_monitoring': True,
-                'log_level': 'INFO'
+                'log_level': 'INFO',
+                'timeout_seconds': 3600,
+                'retry_attempts': 3,
+                'retry_delay_seconds': 300
             },
             'alerts': {
                 'enable_email_alerts': False,
@@ -242,7 +320,10 @@ class ConfigManager:
                 'max_workers': self.pipeline.max_workers,
                 'enable_parallel_processing': self.pipeline.enable_parallel_processing,
                 'enable_monitoring': self.pipeline.enable_monitoring,
-                'log_level': self.pipeline.log_level
+                'log_level': self.pipeline.log_level,
+                'timeout_seconds': self.pipeline.timeout_seconds,
+                'retry_attempts': self.pipeline.retry_attempts,
+                'retry_delay_seconds': self.pipeline.retry_delay_seconds
             },
             'alerts': {
                 'enable_email_alerts': self.alerts.enable_email_alerts,
@@ -331,6 +412,7 @@ class ConfigManager:
         print(f"  Parallel Processing: {self.pipeline.enable_parallel_processing}")
         print(f"  Monitoring: {self.pipeline.enable_monitoring}")
         print(f"  Log Level: {self.pipeline.log_level}")
+        print(f"  Timeout: {self.pipeline.timeout_seconds}s")
         
         print(f"\n🚨 ALERTS:")
         print(f"  Email Alerts: {self.alerts.enable_email_alerts}")
