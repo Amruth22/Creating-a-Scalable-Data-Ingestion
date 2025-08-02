@@ -53,5 +53,9 @@ tqdm>=4.66.0
 # Utilities
 click>=8.1.0
 
+matplotlib 
+
+seaborn
+
 # Note: The following are built into Python and don't need to be installed:
 # sqlite3, smtplib, pathlib, os, sys, time, datetime, json, csv
