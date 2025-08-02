@@ -52,7 +52,7 @@ def create_database_tables(db_path: str) -> bool:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Create orders table
+        # Create orders table with all transformation fields
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +70,60 @@ def create_database_tables(db_path: str) -> bool:
                 source_type TEXT,
                 store_location TEXT,
                 notes TEXT,
+                
+                -- API ingestion fields
+                api_post_id INTEGER,
+                ingested_at TEXT,
+                
+                -- Data cleaning fields
+                cleaned_at TEXT,
+                data_quality_score REAL,
+                
+                -- Data standardization fields
+                standardized_at TEXT,
+                standardization_version REAL,
+                
+                -- Data enrichment fields
+                unit_price_after_discount REAL,
+                discount_percentage REAL,
+                estimated_profit REAL,
+                product_brand TEXT,
+                product_subcategory TEXT,
+                price_tier TEXT,
+                popularity_score INTEGER,
+                customer_segment TEXT,
+                customer_ltv REAL,
+                customer_priority INTEGER,
+                order_year INTEGER,
+                order_month INTEGER,
+                order_day INTEGER,
+                order_weekday TEXT,
+                order_week_of_year INTEGER,
+                order_quarter INTEGER,
+                is_weekend BOOLEAN,
+                is_month_end BOOLEAN,
+                is_month_start BOOLEAN,
+                days_since_order INTEGER,
+                order_timing TEXT,
+                order_size_category TEXT,
+                quantity_category TEXT,
+                revenue_contribution_pct REAL,
+                channel_type TEXT,
+                risk_score INTEGER,
+                risk_level TEXT,
+                seasonal_factor REAL,
+                seasonally_adjusted_amount REAL,
+                season TEXT,
+                is_holiday_season BOOLEAN,
+                is_summer_season BOOLEAN,
+                enriched_at TEXT,
+                enrichment_version REAL,
+                
+                -- Processing metadata
+                processed_at TEXT,
+                processing_stage TEXT,
+                
+                -- Standard timestamps
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
