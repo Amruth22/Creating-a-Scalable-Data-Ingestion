@@ -3,6 +3,7 @@ Database management module for data storage operations
 Handles SQLite database operations, CRUD operations, and data persistence
 """
 
+import os
 import sqlite3
 import pandas as pd
 import logging
@@ -261,128 +262,6 @@ class DatabaseManager:
                 error_message=str(e)
             )
     
-    def update_orders(self, updates: Dict[str, Any], 
-                     filters: Dict[str, Any]) -> DatabaseResult:
-        """
-        Update orders in database
-        
-        Args:
-            updates (Dict): Fields to update
-            filters (Dict): Filter conditions
-            
-        Returns:
-            DatabaseResult: Update result
-        """
-        start_time = datetime.now()
-        
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Build update query
-                set_clauses = []
-                params = []
-                
-                for field, value in updates.items():
-                    set_clauses.append(f"{field} = ?")
-                    params.append(value)
-                
-                # Add updated_at
-                set_clauses.append("updated_at = ?")
-                params.append(datetime.now().isoformat())
-                
-                # Build WHERE clause
-                where_clauses = []
-                for field, value in filters.items():
-                    where_clauses.append(f"{field} = ?")
-                    params.append(value)
-                
-                query = f"""
-                    UPDATE orders 
-                    SET {', '.join(set_clauses)}
-                    WHERE {' AND '.join(where_clauses)}
-                """
-                
-                cursor.execute(query, params)
-                records_affected = cursor.rowcount
-                conn.commit()
-                
-                execution_time = (datetime.now() - start_time).total_seconds()
-                
-                result = DatabaseResult(
-                    success=True,
-                    operation='update_orders',
-                    records_affected=records_affected,
-                    execution_time=execution_time
-                )
-                
-                logger.info(f"Updated {records_affected} orders ({execution_time:.2f}s)")
-                return result
-                
-        except Exception as e:
-            execution_time = (datetime.now() - start_time).total_seconds()
-            logger.error(f"Error updating orders: {e}")
-            return DatabaseResult(
-                success=False,
-                operation='update_orders',
-                records_affected=0,
-                execution_time=execution_time,
-                error_message=str(e)
-            )
-    
-    def delete_orders(self, filters: Dict[str, Any]) -> DatabaseResult:
-        """
-        Delete orders from database
-        
-        Args:
-            filters (Dict): Filter conditions for deletion
-            
-        Returns:
-            DatabaseResult: Deletion result
-        """
-        start_time = datetime.now()
-        
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Build WHERE clause
-                where_clauses = []
-                params = []
-                
-                for field, value in filters.items():
-                    where_clauses.append(f"{field} = ?")
-                    params.append(value)
-                
-                query = f"DELETE FROM orders WHERE {' AND '.join(where_clauses)}"
-                
-                cursor.execute(query, params)
-                records_affected = cursor.rowcount
-                conn.commit()
-                
-                execution_time = (datetime.now() - start_time).total_seconds()
-                
-                result = DatabaseResult(
-                    success=True,
-                    operation='delete_orders',
-                    records_affected=records_affected,
-                    execution_time=execution_time
-                )
-                
-                logger.info(f"Deleted {records_affected} orders ({execution_time:.2f}s)")
-                return result
-                
-        except Exception as e:
-            execution_time = (datetime.now() - start_time).total_seconds()
-            logger.error(f"Error deleting orders: {e}")
-            return DatabaseResult(
-                success=False,
-                operation='delete_orders',
-                records_affected=0,
-                execution_time=execution_time,
-                error_message=str(e)
-            )
-    
     def save_pipeline_run(self, run_data: Dict[str, Any]) -> DatabaseResult:
         """
         Save pipeline run information
@@ -621,146 +500,6 @@ class DatabaseManager:
                 execution_time=execution_time,
                 error_message=str(e)
             )
-    
-    def execute_custom_query(self, query: str, params: Optional[List] = None) -> DatabaseResult:
-        """
-        Execute custom SQL query
-        
-        Args:
-            query (str): SQL query to execute
-            params (List, optional): Query parameters
-            
-        Returns:
-            DatabaseResult: Query result
-        """
-        start_time = datetime.now()
-        
-        try:
-            with self.get_connection() as conn:
-                if query.strip().upper().startswith('SELECT'):
-                    # Read query
-                    df = pd.read_sql_query(query, conn, params=params or [])
-                    records_affected = len(df)
-                    data = df
-                else:
-                    # Write query
-                    cursor = conn.cursor()
-                    cursor.execute(query, params or [])
-                    records_affected = cursor.rowcount
-                    conn.commit()
-                    data = None
-                
-                execution_time = (datetime.now() - start_time).total_seconds()
-                
-                result = DatabaseResult(
-                    success=True,
-                    operation='execute_custom_query',
-                    records_affected=records_affected,
-                    execution_time=execution_time,
-                    data=data
-                )
-                
-                logger.info(f"Executed custom query: {records_affected} records affected")
-                return result
-                
-        except Exception as e:
-            execution_time = (datetime.now() - start_time).total_seconds()
-            logger.error(f"Error executing custom query: {e}")
-            return DatabaseResult(
-                success=False,
-                operation='execute_custom_query',
-                records_affected=0,
-                execution_time=execution_time,
-                error_message=str(e)
-            )
-    
-    def backup_database(self, backup_path: str) -> DatabaseResult:
-        """
-        Create database backup
-        
-        Args:
-            backup_path (str): Path for backup file
-            
-        Returns:
-            DatabaseResult: Backup result
-        """
-        start_time = datetime.now()
-        
-        try:
-            import shutil
-            
-            # Ensure backup directory exists
-            ensure_directory_exists(os.path.dirname(backup_path))
-            
-            # Copy database file
-            shutil.copy2(self.db_path, backup_path)
-            
-            execution_time = (datetime.now() - start_time).total_seconds()
-            
-            result = DatabaseResult(
-                success=True,
-                operation='backup_database',
-                records_affected=1,
-                execution_time=execution_time
-            )
-            
-            logger.info(f"Database backed up to: {backup_path}")
-            return result
-            
-        except Exception as e:
-            execution_time = (datetime.now() - start_time).total_seconds()
-            logger.error(f"Error backing up database: {e}")
-            return DatabaseResult(
-                success=False,
-                operation='backup_database',
-                records_affected=0,
-                execution_time=execution_time,
-                error_message=str(e)
-            )
-    
-    def optimize_database(self) -> DatabaseResult:
-        """
-        Optimize database performance
-        
-        Returns:
-            DatabaseResult: Optimization result
-        """
-        start_time = datetime.now()
-        
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Run VACUUM to reclaim space and defragment
-                cursor.execute("VACUUM")
-                
-                # Analyze tables for query optimization
-                cursor.execute("ANALYZE")
-                
-                conn.commit()
-                
-                execution_time = (datetime.now() - start_time).total_seconds()
-                
-                result = DatabaseResult(
-                    success=True,
-                    operation='optimize_database',
-                    records_affected=1,
-                    execution_time=execution_time
-                )
-                
-                logger.info(f"Database optimized ({execution_time:.2f}s)")
-                return result
-                
-        except Exception as e:
-            execution_time = (datetime.now() - start_time).total_seconds()
-            logger.error(f"Error optimizing database: {e}")
-            return DatabaseResult(
-                success=False,
-                operation='optimize_database',
-                records_affected=0,
-                execution_time=execution_time,
-                error_message=str(e)
-            )
 
 if __name__ == "__main__":
     # Test database manager
@@ -780,18 +519,6 @@ if __name__ == "__main__":
             'customer_email': 'john@example.com',
             'discount': 0.0,
             'total_amount': 999.99
-        },
-        {
-            'order_id': 'ORD-2024-002',
-            'customer_name': 'Jane Smith',
-            'product': 'MacBook Pro',
-            'quantity': 1,
-            'price': 1999.99,
-            'order_date': '2024-01-16',
-            'source': 'store',
-            'customer_email': 'jane@example.com',
-            'discount': 100.0,
-            'total_amount': 1899.99
         }
     ])
     
@@ -807,17 +534,11 @@ if __name__ == "__main__":
     print("\nTesting get orders...")
     get_result = db_manager.get_orders()
     print(f"Get result: {get_result.success}, Records: {get_result.records_affected}")
-    if get_result.data is not None:
-        print(f"Sample data:\n{get_result.data[['order_id', 'customer_name', 'product']].head()}")
     
     # Test database stats
     print("\nTesting database stats...")
     stats_result = db_manager.get_database_stats()
     print(f"Stats result: {stats_result.success}")
-    if stats_result.data is not None:
-        stats = stats_result.data.iloc[0].to_dict()
-        print(f"Orders count: {stats.get('orders_count', 0)}")
-        print(f"Database size: {stats.get('database_size_mb', 0):.2f} MB")
     
     # Cleanup test database
     try:
