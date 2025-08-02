@@ -1,0 +1,421 @@
+# Data Ingestion Pipeline Configuration
+# Main configuration file for the complete data ingestion pipeline
+
+# Pipeline Metadata
+pipeline:
+  name: "data_ingestion_pipeline"
+  version: "1.0.0"
+  description: "Scalable data ingestion pipeline for e-commerce order processing"
+  environment: "development"  # development, staging, production
+  
+  # Execution Settings
+  execution:
+    batch_size: 1000
+    max_workers: 4
+    enable_parallel_processing: true
+    enable_monitoring: true
+    timeout_seconds: 3600  # 1 hour
+    retry_attempts: 3
+    retry_delay_seconds: 300  # 5 minutes
+    
+  # Logging Configuration
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file_rotation: true
+    max_file_size_mb: 10
+    backup_count: 5
+    console_output: true
+    
+  # Performance Settings
+  performance:
+    memory_limit_mb: 2048
+    cpu_limit_percent: 80
+    disk_space_threshold_mb: 1024
+    enable_profiling: false
+    profile_output_dir: "data/profiles"
+
+# Pipeline Stages Configuration
+stages:
+  # Data Ingestion Stage
+  ingestion:
+    enabled: true
+    priority: 1
+    timeout_seconds: 1800  # 30 minutes
+    
+    # File Ingestion
+    file_ingestion:
+      enabled: true
+      input_directories:
+        csv: "data/input/csv"
+        json: "data/input/json"
+        excel: "data/input/excel"
+      processed_directory: "data/input/processed"
+      error_directory: "data/input/errors"
+      max_file_size_mb: 100
+      supported_encodings: ["utf-8", "latin-1", "cp1252"]
+      file_patterns:
+        orders: ["orders_*.csv", "orders_*.json"]
+        customers: ["customers_*.csv", "customers_*.json"]
+        products: ["products_*.csv", "products_*.json"]
+      
+    # API Ingestion
+    api_ingestion:
+      enabled: true
+      timeout_seconds: 30
+      retry_attempts: 3
+      retry_delay_seconds: 5
+      rate_limit_requests_per_minute: 60
+      batch_size: 100
+      
+    # Database Ingestion
+    database_ingestion:
+      enabled: true
+      connection_timeout_seconds: 30
+      query_timeout_seconds: 300
+      batch_size: 1000
+      max_connections: 5
+      incremental_loading: true
+      
+  # Data Validation Stage
+  validation:
+    enabled: true
+    priority: 2
+    timeout_seconds: 600  # 10 minutes
+    
+    # Schema Validation
+    schema_validation:
+      enabled: true
+      strict_mode: false
+      required_fields: ["order_id", "customer_name", "product", "quantity", "price", "order_date"]
+      optional_fields: ["source", "store_location", "customer_email", "product_category", "discount", "notes"]
+      
+    # Data Quality Validation
+    data_quality:
+      enabled: true
+      quality_threshold_percent: 80
+      error_threshold_percent: 5
+      warning_threshold_percent: 10
+      
+      # Field-specific validation rules
+      validation_rules:
+        order_id:
+          pattern: "^[A-Z]{3}-\\d{4}-\\d{3}$"
+          required: true
+        customer_name:
+          min_length: 2
+          max_length: 100
+          required: true
+        product:
+          min_length: 2
+          max_length: 200
+          required: true
+        quantity:
+          min_value: 1
+          max_value: 1000
+          data_type: "integer"
+          required: true
+        price:
+          min_value: 0.01
+          max_value: 50000.00
+          data_type: "float"
+          required: true
+        order_date:
+          data_type: "date"
+          max_age_days: 1825  # 5 years
+          future_allowed: false
+          required: true
+        customer_email:
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          required: false
+          
+  # Data Transformation Stage
+  transformation:
+    enabled: true
+    priority: 3
+    timeout_seconds: 900  # 15 minutes
+    
+    # Data Cleaning
+    cleaning:
+      enabled: true
+      remove_duplicates: true
+      handle_missing_values: true
+      standardize_text: true
+      fix_data_types: true
+      
+      # Missing value strategies
+      missing_value_strategies:
+        quantity: "fill_with_default"  # fill_with_default, remove_record, interpolate
+        discount: "fill_with_zero"
+        customer_email: "keep_null"
+        store_location: "fill_with_unknown"
+        
+      # Text standardization
+      text_standardization:
+        customer_name: "title_case"
+        product: "proper_case"
+        source: "lowercase"
+        store_location: "title_case"
+        
+    # Data Enrichment
+    enrichment:
+      enabled: true
+      add_calculated_fields: true
+      add_metadata: true
+      customer_segmentation: true
+      product_categorization: true
+      
+      # Calculated fields
+      calculated_fields:
+        - name: "total_amount"
+          formula: "(quantity * price) - discount"
+        - name: "order_year"
+          formula: "YEAR(order_date)"
+        - name: "order_month"
+          formula: "MONTH(order_date)"
+        - name: "order_weekday"
+          formula: "WEEKDAY(order_date)"
+          
+    # Data Standardization
+    standardization:
+      enabled: true
+      standardize_formats: true
+      normalize_values: true
+      apply_business_rules: true
+      
+  # Data Storage Stage
+  storage:
+    enabled: true
+    priority: 4
+    timeout_seconds: 600  # 10 minutes
+    
+    # Database Storage
+    database_storage:
+      enabled: true
+      batch_size: 1000
+      upsert_mode: true  # Insert or update existing records
+      create_indexes: true
+      optimize_after_load: true
+      
+    # File Export
+    file_export:
+      enabled: true
+      formats: ["csv", "json", "parquet"]
+      compression: "gzip"
+      include_metadata: true
+      
+    # Archiving
+    archiving:
+      enabled: true
+      archive_processed_files: true
+      retention_days: 90
+      compression: "zip"
+
+# Data Quality Configuration
+data_quality:
+  # Quality Scoring
+  scoring:
+    weights:
+      completeness: 0.3      # Weight for data completeness
+      validity: 0.3          # Weight for data validity
+      consistency: 0.2       # Weight for data consistency
+      accuracy: 0.2          # Weight for data accuracy
+      
+  # Quality Levels
+  levels:
+    excellent: 95  # 95-100%
+    good: 85       # 85-94%
+    fair: 70       # 70-84%
+    poor: 50       # 50-69%
+    critical: 0    # 0-49%
+    
+  # Alerting Thresholds
+  alerts:
+    critical_threshold: 50
+    warning_threshold: 80
+    info_threshold: 95
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  
+  # Metrics Collection
+  metrics:
+    enabled: true
+    collection_interval_seconds: 60
+    retention_days: 30
+    
+    # Metrics to collect
+    collect:
+      - "records_processed"
+      - "processing_time_seconds"
+      - "error_count"
+      - "success_rate_percent"
+      - "throughput_per_minute"
+      - "memory_usage_mb"
+      - "cpu_usage_percent"
+      - "disk_usage_mb"
+      - "data_quality_score"
+      
+  # Health Checks
+  health_checks:
+    enabled: true
+    check_interval_seconds: 300  # 5 minutes
+    
+    checks:
+      - name: "database_connectivity"
+        enabled: true
+        timeout_seconds: 10
+      - name: "disk_space"
+        enabled: true
+        threshold_mb: 1024
+      - name: "memory_usage"
+        enabled: true
+        threshold_percent: 90
+      - name: "api_endpoints"
+        enabled: true
+        timeout_seconds: 30
+        
+  # Alerting
+  alerting:
+    enabled: true
+    
+    # Alert channels
+    channels:
+      email:
+        enabled: false  # Set to true and configure SMTP settings
+        recipients: ["admin@company.com", "team@company.com"]
+      slack:
+        enabled: false  # Set to true and configure webhook
+        webhook_url: ""
+      console:
+        enabled: true
+        
+    # Alert rules
+    rules:
+      - name: "high_error_rate"
+        condition: "error_rate > 5"
+        severity: "critical"
+        enabled: true
+      - name: "low_success_rate"
+        condition: "success_rate < 95"
+        severity: "warning"
+        enabled: true
+      - name: "processing_timeout"
+        condition: "processing_time > 3600"
+        severity: "warning"
+        enabled: true
+      - name: "data_quality_degradation"
+        condition: "data_quality_score < 80"
+        severity: "warning"
+        enabled: true
+
+# Scheduling Configuration
+scheduling:
+  enabled: true
+  timezone: "UTC"
+  
+  # Default schedules for different pipeline types
+  default_schedules:
+    full_pipeline: "0 2 * * *"      # Daily at 2 AM
+    incremental: "0 */4 * * *"      # Every 4 hours
+    validation_only: "0 */1 * * *"  # Every hour
+    
+  # Job configuration
+  jobs:
+    max_concurrent: 3
+    timeout_seconds: 7200  # 2 hours
+    retry_attempts: 2
+    retry_delay_seconds: 600  # 10 minutes
+    
+  # Maintenance windows
+  maintenance_windows:
+    - name: "weekly_maintenance"
+      day: "sunday"
+      start_time: "01:00"
+      end_time: "04:00"
+      timezone: "UTC"
+
+# Security Configuration
+security:
+  # Encryption
+  encryption:
+    enabled: false  # Enable in production
+    algorithm: "AES-256"
+    key_rotation_days: 90
+    
+  # Access Control
+  access_control:
+    enabled: false  # Enable in production
+    require_authentication: false
+    session_timeout_minutes: 60
+    
+  # Audit Logging
+  audit_logging:
+    enabled: true
+    log_file: "logs/audit.log"
+    include_data_samples: false  # Set to false in production
+    retention_days: 365
+
+# Environment-specific Overrides
+environments:
+  development:
+    pipeline:
+      logging:
+        level: "DEBUG"
+        console_output: true
+    stages:
+      validation:
+        data_quality:
+          quality_threshold_percent: 70  # Lower threshold for dev
+    monitoring:
+      alerting:
+        enabled: false  # Disable alerts in dev
+        
+  staging:
+    pipeline:
+      logging:
+        level: "INFO"
+    stages:
+      validation:
+        data_quality:
+          quality_threshold_percent: 85
+    monitoring:
+      alerting:
+        enabled: true
+        channels:
+          email:
+            enabled: false
+          console:
+            enabled: true
+            
+  production:
+    pipeline:
+      logging:
+        level: "WARNING"
+        console_output: false
+      performance:
+        memory_limit_mb: 4096
+        cpu_limit_percent: 70
+    stages:
+      validation:
+        data_quality:
+          quality_threshold_percent: 90
+    monitoring:
+      alerting:
+        enabled: true
+        channels:
+          email:
+            enabled: true
+          slack:
+            enabled: true
+          console:
+            enabled: false
+    security:
+      encryption:
+        enabled: true
+      access_control:
+        enabled: true
+        require_authentication: true
+      audit_logging:
+        include_data_samples: false
