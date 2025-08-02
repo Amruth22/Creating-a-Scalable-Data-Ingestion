@@ -1,482 +1,238 @@
 """
-Sample data generation script for data ingestion pipeline
-Creates realistic sample CSV and JSON files for testing and demonstration
+Sample data generation script
+Creates sample CSV and JSON files for testing the data ingestion pipeline
 """
 
 import os
 import sys
 import json
-import csv
+import pandas as pd
 import random
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any
 
 # Add src to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+project_root = os.path.join(os.path.dirname(__file__), '..')
+src_path = os.path.join(project_root, 'src')
+sys.path.insert(0, project_root)
+sys.path.insert(0, src_path)
 
-from utils.config import config
-from utils.helpers import ensure_directory_exists, write_csv_file, write_json_file
-from utils.constants import SampleData
+try:
+    from src.utils.helpers import ensure_directory_exists
+except ImportError:
+    def ensure_directory_exists(path):
+        Path(path).mkdir(parents=True, exist_ok=True)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-class SampleDataGenerator:
-    """Generate realistic sample data for testing the pipeline"""
+def generate_sample_orders(num_orders: int = 50) -> list:
+    """Generate sample order data"""
     
-    def __init__(self):
-        """Initialize the sample data generator"""
-        self.products = [
-            {"name": "iPhone 15", "category": "Electronics", "price_range": (999, 1199)},
-            {"name": "MacBook Pro", "category": "Electronics", "price_range": (1999, 2499)},
-            {"name": "AirPods Pro", "category": "Electronics", "price_range": (249, 299)},
-            {"name": "iPad Air", "category": "Electronics", "price_range": (599, 799)},
-            {"name": "Apple Watch", "category": "Electronics", "price_range": (399, 499)},
-            {"name": "Samsung Galaxy S24", "category": "Electronics", "price_range": (899, 1099)},
-            {"name": "Dell XPS 13", "category": "Electronics", "price_range": (1299, 1599)},
-            {"name": "Sony WH-1000XM4", "category": "Electronics", "price_range": (349, 399)},
-            {"name": "Nintendo Switch", "category": "Gaming", "price_range": (299, 349)},
-            {"name": "PlayStation 5", "category": "Gaming", "price_range": (499, 599)},
-            {"name": "Xbox Series X", "category": "Gaming", "price_range": (499, 599)},
-            {"name": "Kindle Paperwhite", "category": "Books", "price_range": (139, 189)},
-            {"name": "Echo Dot", "category": "Smart Home", "price_range": (49, 79)},
-            {"name": "Ring Doorbell", "category": "Smart Home", "price_range": (199, 249)},
-            {"name": "Fitbit Charge 5", "category": "Fitness", "price_range": (179, 229)}
-        ]
-        
-        self.customers = [
-            {"name": "John Doe", "email": "john.doe@email.com"},
-            {"name": "Jane Smith", "email": "jane.smith@email.com"},
-            {"name": "Bob Wilson", "email": "bob.wilson@email.com"},
-            {"name": "Alice Johnson", "email": "alice.johnson@email.com"},
-            {"name": "Charlie Brown", "email": "charlie.brown@email.com"},
-            {"name": "Diana Prince", "email": "diana.prince@email.com"},
-            {"name": "Edward Norton", "email": "edward.norton@email.com"},
-            {"name": "Fiona Green", "email": "fiona.green@email.com"},
-            {"name": "George Miller", "email": "george.miller@email.com"},
-            {"name": "Helen Davis", "email": "helen.davis@email.com"},
-            {"name": "Ivan Petrov", "email": "ivan.petrov@email.com"},
-            {"name": "Julia Roberts", "email": "julia.roberts@email.com"},
-            {"name": "Kevin Hart", "email": "kevin.hart@email.com"},
-            {"name": "Linda Williams", "email": "linda.williams@email.com"},
-            {"name": "Michael Jordan", "email": "michael.jordan@email.com"}
-        ]
-        
-        self.sources = ["website", "mobile_app", "store", "phone", "partner"]
-        self.store_locations = ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose"]
-        
-        self.order_counter = 1
+    # Sample data pools
+    customers = [
+        'John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Johnson', 'Charlie Brown',
+        'Diana Prince', 'Bruce Wayne', 'Clark Kent', 'Peter Parker', 'Tony Stark',
+        'Natasha Romanoff', 'Steve Rogers', 'Wanda Maximoff', 'Vision Android',
+        'Scott Lang', 'Hope Van Dyne', 'Carol Danvers', 'Stephen Strange',
+        'T\'Challa Udaku', 'Shuri Udaku', 'Sam Wilson', 'Bucky Barnes',
+        'Clint Barton', 'Laura Barton', 'Pepper Potts', 'Happy Hogan'
+    ]
     
-    def generate_order_id(self) -> str:
-        """Generate a unique order ID"""
-        order_id = f"ORD-2024-{self.order_counter:03d}"
-        self.order_counter += 1
-        return order_id
+    products = [
+        {'name': 'iPhone 15', 'price': 999.99, 'category': 'Electronics'},
+        {'name': 'MacBook Pro', 'price': 1999.99, 'category': 'Electronics'},
+        {'name': 'AirPods Pro', 'price': 249.99, 'category': 'Electronics'},
+        {'name': 'iPad Air', 'price': 599.99, 'category': 'Electronics'},
+        {'name': 'Apple Watch', 'price': 399.99, 'category': 'Electronics'},
+        {'name': 'Samsung Galaxy S24', 'price': 899.99, 'category': 'Electronics'},
+        {'name': 'Nintendo Switch', 'price': 299.99, 'category': 'Gaming'},
+        {'name': 'PlayStation 5', 'price': 499.99, 'category': 'Gaming'},
+        {'name': 'Xbox Series X', 'price': 499.99, 'category': 'Gaming'},
+        {'name': 'Kindle Paperwhite', 'price': 139.99, 'category': 'Electronics'},
+        {'name': 'Echo Dot', 'price': 49.99, 'category': 'Smart Home'},
+        {'name': 'Ring Doorbell', 'price': 199.99, 'category': 'Smart Home'},
+        {'name': 'Fitbit Charge 5', 'price': 179.99, 'category': 'Fitness'},
+        {'name': 'Sony WH-1000XM4', 'price': 349.99, 'category': 'Electronics'},
+        {'name': 'GoPro Hero 11', 'price': 399.99, 'category': 'Electronics'}
+    ]
     
-    def generate_random_date(self, days_back: int = 30) -> str:
-        """Generate a random date within the last N days"""
-        start_date = datetime.now() - timedelta(days=days_back)
-        random_days = random.randint(0, days_back)
-        random_date = start_date + timedelta(days=random_days)
-        return random_date.strftime("%Y-%m-%d")
+    sources = ['website', 'mobile_app', 'store', 'phone', 'partner']
     
-    def generate_order(self) -> Dict[str, Any]:
-        """Generate a single order record"""
-        product = random.choice(self.products)
-        customer = random.choice(self.customers)
-        source = random.choice(self.sources)
+    locations = [
+        'New York Store', 'Los Angeles Store', 'Chicago Store', 'Houston Store',
+        'Phoenix Store', 'Philadelphia Store', 'San Antonio Store', 'San Diego Store',
+        'Dallas Store', 'San Jose Store', 'Austin Store', 'Jacksonville Store',
+        'Fort Worth Store', 'Columbus Store', 'Charlotte Store', 'San Francisco Store',
+        'Indianapolis Store', 'Seattle Store', 'Denver Store', 'Washington Store'
+    ]
+    
+    orders = []
+    
+    # Generate orders
+    for i in range(num_orders):
+        customer = random.choice(customers)
+        product = random.choice(products)
+        source = random.choice(sources)
         
-        # Generate price with some variation
-        min_price, max_price = product["price_range"]
-        price = round(random.uniform(min_price, max_price), 2)
+        # Generate order date (last 90 days)
+        days_ago = random.randint(0, 90)
+        order_date = datetime.now() - timedelta(days=days_ago)
         
-        # Generate quantity (mostly 1, sometimes 2-3)
-        quantity = random.choices([1, 2, 3], weights=[70, 20, 10])[0]
+        # Generate quantity (weighted towards 1)
+        quantity = random.choices([1, 2, 3, 4, 5], weights=[60, 20, 10, 5, 5])[0]
         
-        # Generate discount (sometimes)
+        # Generate discount (80% no discount, 20% some discount)
         discount = 0.0
         if random.random() < 0.2:  # 20% chance of discount
             discount = round(random.uniform(10, 100), 2)
         
+        # Calculate total
+        subtotal = product['price'] * quantity
+        total_amount = subtotal - discount
+        
+        # Generate email
+        first_name = customer.split()[0].lower()
+        last_name = customer.split()[-1].lower()
+        domains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'company.com']
+        email = f"{first_name}.{last_name}@{random.choice(domains)}"
+        
         order = {
-            "order_id": self.generate_order_id(),
-            "customer_name": customer["name"],
-            "customer_email": customer["email"],
-            "product": product["name"],
-            "product_category": product["category"],
-            "quantity": quantity,
-            "price": price,
-            "discount": discount,
-            "total_amount": round((price * quantity) - discount, 2),
-            "order_date": self.generate_random_date(),
-            "source": source
+            'order_id': f'ORD-{order_date.year}-{i+1:03d}',
+            'customer_name': customer,
+            'customer_email': email,
+            'product': product['name'],
+            'product_category': product['category'],
+            'quantity': quantity,
+            'price': product['price'],
+            'discount': discount,
+            'total_amount': round(total_amount, 2),
+            'order_date': order_date.strftime('%Y-%m-%d'),
+            'source': source,
+            'store_location': random.choice(locations) if source == 'store' else '',
+            'notes': random.choice(['', 'Priority order', 'Gift order', 'Express delivery', 'Customer pickup']) if random.random() < 0.3 else ''
         }
         
-        # Add store location for store orders
-        if source == "store":
-            order["store_location"] = random.choice(self.store_locations)
-        
-        # Sometimes add notes
-        if random.random() < 0.1:  # 10% chance
-            notes = [
-                "Customer requested expedited shipping",
-                "Gift wrapping requested",
-                "Delivery to office address",
-                "Customer called to confirm order",
-                "Special handling required"
-            ]
-            order["notes"] = random.choice(notes)
-        
-        return order
+        orders.append(order)
     
-    def generate_csv_file(self, filename: str, num_records: int = 50) -> bool:
-        """
-        Generate CSV file with sample orders
-        
-        Args:
-            filename (str): Output filename
-            num_records (int): Number of records to generate
-            
-        Returns:
-            bool: True if successful
-        """
-        try:
-            # Generate orders
-            orders = [self.generate_order() for _ in range(num_records)]
-            
-            # Convert to DataFrame and save as CSV
-            import pandas as pd
-            df = pd.DataFrame(orders)
-            
-            # Ensure output directory exists
-            file_path = os.path.join(config.file.input_dir, "csv", filename)
-            ensure_directory_exists(os.path.dirname(file_path))
-            
-            # Save CSV file
-            df.to_csv(file_path, index=False)
-            
-            logger.info(f"✅ Generated CSV file: {file_path} ({num_records} records)")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error generating CSV file {filename}: {e}")
-            return False
-    
-    def generate_json_file(self, filename: str, num_records: int = 30) -> bool:
-        """
-        Generate JSON file with sample orders
-        
-        Args:
-            filename (str): Output filename
-            num_records (int): Number of records to generate
-            
-        Returns:
-            bool: True if successful
-        """
-        try:
-            # Generate orders
-            orders = [self.generate_order() for _ in range(num_records)]
-            
-            # Create JSON structure
-            json_data = {
-                "app_version": "2.1.0",
-                "upload_time": datetime.now().isoformat(),
-                "total_orders": len(orders),
-                "orders": orders
-            }
-            
-            # Ensure output directory exists
-            file_path = os.path.join(config.file.input_dir, "json", filename)
-            ensure_directory_exists(os.path.dirname(file_path))
-            
-            # Save JSON file
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(json_data, f, indent=2, default=str)
-            
-            logger.info(f"✅ Generated JSON file: {file_path} ({num_records} records)")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error generating JSON file {filename}: {e}")
-            return False
-    
-    def generate_corrupted_csv(self, filename: str) -> bool:
-        """
-        Generate a CSV file with some data quality issues for testing
-        
-        Args:
-            filename (str): Output filename
-            
-        Returns:
-            bool: True if successful
-        """
-        try:
-            orders = []
-            
-            # Generate some good records
-            for _ in range(15):
-                orders.append(self.generate_order())
-            
-            # Add some problematic records
-            problematic_orders = [
-                {
-                    "order_id": "",  # Missing order ID
-                    "customer_name": "Test Customer",
-                    "product": "Test Product",
-                    "quantity": 1,
-                    "price": 99.99,
-                    "order_date": "2024-01-15",
-                    "source": "website"
-                },
-                {
-                    "order_id": "ORD-2024-999",
-                    "customer_name": "",  # Missing customer name
-                    "product": "Test Product",
-                    "quantity": 1,
-                    "price": 99.99,
-                    "order_date": "2024-01-15",
-                    "source": "website"
-                },
-                {
-                    "order_id": "ORD-2024-998",
-                    "customer_name": "Test Customer",
-                    "product": "Test Product",
-                    "quantity": -1,  # Negative quantity
-                    "price": 99.99,
-                    "order_date": "2024-01-15",
-                    "source": "website"
-                },
-                {
-                    "order_id": "ORD-2024-997",
-                    "customer_name": "Test Customer",
-                    "product": "Test Product",
-                    "quantity": 1,
-                    "price": -50.0,  # Negative price
-                    "order_date": "2024-01-15",
-                    "source": "website"
-                },
-                {
-                    "order_id": "ORD-2024-996",
-                    "customer_name": "Test Customer",
-                    "product": "Test Product",
-                    "quantity": 1,
-                    "price": 99.99,
-                    "order_date": "invalid-date",  # Invalid date
-                    "source": "website"
-                }
-            ]
-            
-            orders.extend(problematic_orders)
-            
-            # Convert to DataFrame and save
-            import pandas as pd
-            df = pd.DataFrame(orders)
-            
-            file_path = os.path.join(config.file.input_dir, "csv", filename)
-            ensure_directory_exists(os.path.dirname(file_path))
-            
-            df.to_csv(file_path, index=False)
-            
-            logger.info(f"✅ Generated corrupted CSV file: {file_path} ({len(orders)} records, {len(problematic_orders)} with issues)")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error generating corrupted CSV file {filename}: {e}")
-            return False
-    
-    def generate_large_csv(self, filename: str, num_records: int = 1000) -> bool:
-        """
-        Generate a large CSV file for performance testing
-        
-        Args:
-            filename (str): Output filename
-            num_records (int): Number of records to generate
-            
-        Returns:
-            bool: True if successful
-        """
-        try:
-            file_path = os.path.join(config.file.input_dir, "csv", filename)
-            ensure_directory_exists(os.path.dirname(file_path))
-            
-            # Generate data in batches to avoid memory issues
-            batch_size = 100
-            
-            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = [
-                    'order_id', 'customer_name', 'customer_email', 'product', 
-                    'product_category', 'quantity', 'price', 'discount', 
-                    'total_amount', 'order_date', 'source', 'store_location', 'notes'
-                ]
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                for batch_start in range(0, num_records, batch_size):
-                    batch_end = min(batch_start + batch_size, num_records)
-                    batch_orders = [self.generate_order() for _ in range(batch_end - batch_start)]
-                    
-                    for order in batch_orders:
-                        # Ensure all fields are present
-                        row = {field: order.get(field, '') for field in fieldnames}
-                        writer.writerow(row)
-            
-            logger.info(f"✅ Generated large CSV file: {file_path} ({num_records} records)")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error generating large CSV file {filename}: {e}")
-            return False
+    return orders
 
-def create_sample_files():
-    """Create various sample files for testing"""
-    generator = SampleDataGenerator()
+def create_csv_files(orders: list, output_dir: str):
+    """Create sample CSV files"""
+    csv_dir = os.path.join(output_dir, 'csv')
+    ensure_directory_exists(csv_dir)
     
-    logger.info("📊 Generating sample data files...")
+    # Split orders into multiple files
+    chunk_size = len(orders) // 3 + 1
     
-    # Generate regular CSV files
-    generator.generate_csv_file("orders_daily_20240115.csv", 50)
-    generator.generate_csv_file("orders_daily_20240116.csv", 45)
-    generator.generate_csv_file("orders_daily_20240117.csv", 60)
+    for i in range(0, len(orders), chunk_size):
+        chunk = orders[i:i + chunk_size]
+        df = pd.DataFrame(chunk)
+        
+        filename = f"orders_batch_{i//chunk_size + 1}_{datetime.now().strftime('%Y%m%d')}.csv"
+        filepath = os.path.join(csv_dir, filename)
+        
+        df.to_csv(filepath, index=False)
+        print(f"Created CSV file: {filepath} ({len(chunk)} records)")
+
+def create_json_files(orders: list, output_dir: str):
+    """Create sample JSON files"""
+    json_dir = os.path.join(output_dir, 'json')
+    ensure_directory_exists(json_dir)
     
-    # Generate JSON files
-    generator.generate_json_file("mobile_orders_20240115.json", 30)
-    generator.generate_json_file("mobile_orders_20240116.json", 25)
+    # Split orders into multiple files with JSON structure
+    chunk_size = len(orders) // 2 + 1
     
-    # Generate a corrupted file for testing error handling
-    generator.generate_corrupted_csv("orders_corrupted_20240118.csv")
-    
-    # Generate a large file for performance testing
-    generator.generate_large_csv("orders_large_dataset.csv", 1000)
-    
-    logger.info("✅ Sample data generation completed!")
+    for i in range(0, len(orders), chunk_size):
+        chunk = orders[i:i + chunk_size]
+        
+        json_data = {
+            'app_version': '2.1.0',
+            'upload_time': datetime.now().isoformat(),
+            'total_orders': len(chunk),
+            'orders': chunk
+        }
+        
+        filename = f"mobile_orders_{i//chunk_size + 1}_{datetime.now().strftime('%Y%m%d')}.json"
+        filepath = os.path.join(json_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, indent=2, default=str)
+        
+        print(f"Created JSON file: {filepath} ({len(chunk)} records)")
 
 def create_sample_config_files():
-    """Create sample configuration files"""
-    logger.info("⚙️ Creating sample configuration files...")
+    """Create sample configuration files if they don't exist"""
+    config_dir = "config"
+    ensure_directory_exists(config_dir)
     
-    try:
-        # Create config directory
-        config_dir = "config"
-        ensure_directory_exists(config_dir)
-        
-        # Pipeline configuration
-        pipeline_config = {
-            "database": {
-                "path": "data/orders.db",
-                "timeout": 30,
-                "check_same_thread": False
-            },
-            "api": {
-                "base_url": "https://jsonplaceholder.typicode.com",
-                "timeout": 30,
-                "retry_attempts": 3,
-                "retry_delay": 5
-            },
-            "file": {
-                "input_dir": "data/input",
-                "output_dir": "data/output",
-                "processed_dir": "data/input/processed",
-                "archive_dir": "data/archive",
-                "max_file_size_mb": 100
-            },
-            "pipeline": {
-                "batch_size": 1000,
-                "max_workers": 4,
-                "enable_parallel_processing": True,
-                "enable_monitoring": True,
-                "log_level": "INFO"
-            },
-            "alerts": {
-                "enable_email_alerts": False,
-                "smtp_server": "smtp.gmail.com",
-                "smtp_port": 587,
-                "email_from": "",
-                "email_to": "",
-                "email_password": ""
-            }
+    # Simple database config
+    db_config = {
+        'database': {
+            'path': 'data/orders.db',
+            'timeout': 30
         }
-        
-        config_file = os.path.join(config_dir, "pipeline_config.yaml")
+    }
+    
+    db_config_path = os.path.join(config_dir, 'database_config.yaml')
+    if not os.path.exists(db_config_path):
         import yaml
-        with open(config_file, 'w') as f:
-            yaml.dump(pipeline_config, f, default_flow_style=False, indent=2)
-        
-        logger.info(f"✅ Created pipeline configuration: {config_file}")
-        
-        # API endpoints configuration
-        api_config = {
-            "endpoints": {
-                "orders": "/posts",
-                "users": "/users",
-                "comments": "/comments"
-            },
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "DataIngestionPipeline/1.0"
-            },
-            "rate_limiting": {
-                "requests_per_minute": 60,
-                "burst_limit": 10
-            }
+        with open(db_config_path, 'w') as f:
+            yaml.dump(db_config, f, default_flow_style=False, indent=2)
+        print(f"Created config file: {db_config_path}")
+    
+    # Simple API config
+    api_config = {
+        'api': {
+            'base_url': 'https://jsonplaceholder.typicode.com',
+            'timeout': 30,
+            'retry_attempts': 3
         }
-        
-        api_config_file = os.path.join(config_dir, "api_config.yaml")
-        with open(api_config_file, 'w') as f:
+    }
+    
+    api_config_path = os.path.join(config_dir, 'api_config.yaml')
+    if not os.path.exists(api_config_path):
+        import yaml
+        with open(api_config_path, 'w') as f:
             yaml.dump(api_config, f, default_flow_style=False, indent=2)
-        
-        logger.info(f"✅ Created API configuration: {api_config_file}")
-        
-    except Exception as e:
-        logger.error(f"❌ Error creating configuration files: {e}")
+        print(f"Created config file: {api_config_path}")
 
 def main():
-    """Main function to generate all sample data"""
-    logger.info("🚀 Starting sample data generation...")
+    """Main function"""
+    print("📊 Sample Data Generator")
+    print("=" * 50)
     
-    try:
-        # Create sample data files
-        create_sample_files()
-        
-        # Create sample configuration files
-        create_sample_config_files()
-        
-        # Create directory structure
-        directories = [
-            "data/samples",
-            "data/output/reports",
-            "logs",
-            "data/archive"
-        ]
-        
-        for directory in directories:
-            ensure_directory_exists(directory)
-        
-        logger.info("🎉 Sample data generation completed successfully!")
-        logger.info("💡 You can now test the data ingestion pipeline with the generated files!")
-        
-        # Print summary
-        print("\n" + "="*60)
-        print("📊 SAMPLE DATA GENERATION SUMMARY")
-        print("="*60)
-        print("Generated files:")
-        print("  📁 CSV files: data/input/csv/")
-        print("  📄 JSON files: data/input/json/")
-        print("  ⚙️ Config files: config/")
-        print("  📝 Logs directory: logs/")
-        print("\nNext steps:")
-        print("  1. Run: python scripts/setup_database.py")
-        print("  2. Run: python scripts/run_pipeline.py")
-        print("  3. Check: data/output/ for results")
-        print("="*60)
-        
-        return 0
-        
-    except Exception as e:
-        logger.error(f"❌ Sample data generation failed: {e}")
-        return 1
+    # Create directories
+    input_dir = "data/input"
+    ensure_directory_exists(input_dir)
+    
+    # Generate sample orders
+    print("🔄 Generating sample orders...")
+    orders = generate_sample_orders(75)  # Generate 75 sample orders
+    print(f"✅ Generated {len(orders)} sample orders")
+    
+    # Create CSV files
+    print("\n📄 Creating CSV files...")
+    create_csv_files(orders, input_dir)
+    
+    # Create JSON files
+    print("\n📄 Creating JSON files...")
+    create_json_files(orders, input_dir)
+    
+    # Create sample config files
+    print("\n⚙️ Creating sample configuration files...")
+    create_sample_config_files()
+    
+    # Summary
+    print("\n" + "=" * 50)
+    print("📈 Sample Data Generation Summary")
+    print("=" * 50)
+    print(f"✅ Total orders generated: {len(orders)}")
+    print(f"📁 CSV files created in: data/input/csv/")
+    print(f"📁 JSON files created in: data/input/json/")
+    print(f"⚙️ Config files created in: config/")
+    
+    print("\n🎉 Sample data generation completed!")
+    print("💡 You can now run: python scripts/run_pipeline.py")
+    
+    return 0
 
 if __name__ == "__main__":
     exit_code = main()
