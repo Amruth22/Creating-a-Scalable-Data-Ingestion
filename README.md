@@ -38,7 +38,7 @@
 
 ## 🌟 What is This Project?
 
-This is a **beginner-friendly project** that teaches you how to build **data ingestion pipelines** from scratch. You'll learn to collect data from multiple sources, process it, and store it in a database - just like real companies do!
+This is a **beginner-friendly educational project** that teaches you how to build **data ingestion pipelines** from scratch. You'll learn to collect data from multiple sources, process it, and store it in a database through hands-on practice!
 
 ### 🎯 **Perfect for:**
 - 👨‍💻 **Complete beginners** to data engineering
