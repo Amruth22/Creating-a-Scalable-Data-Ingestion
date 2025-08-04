@@ -1546,8 +1546,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ### 🌟 **Star this repository if it helped you learn data ingestion!** ⭐
 
-**Made with ❤️ for aspiring data engineers**
-
 [🔝 Back to Top](#-creating-a-scalable-data-ingestion-pipeline)
 
 </div>
